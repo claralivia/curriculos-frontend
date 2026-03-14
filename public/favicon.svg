@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CV Studio icon">
+	<defs>
+		<linearGradient id="bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#0f172a"/>
+			<stop offset="0.55" stop-color="#14532d"/>
+			<stop offset="1" stop-color="#10b981"/>
+		</linearGradient>
+		<linearGradient id="paper" x1="18" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#ffffff"/>
+			<stop offset="1" stop-color="#e2e8f0"/>
+		</linearGradient>
+	</defs>
+
+	<rect x="4" y="4" width="56" height="56" rx="14" fill="url(#bg)"/>
+	<rect x="16" y="12" width="32" height="40" rx="7" fill="url(#paper)"/>
+	<path d="M40 12v8h8" fill="#cbd5e1"/>
+	<path d="M40 12l8 8" stroke="#94a3b8" stroke-width="1.6"/>
+
+	<path d="M22 32.5c0-3.7 2.7-6.5 6.5-6.5 2.3 0 4.1.9 5.3 2.5l-2.3 1.9c-.7-.9-1.6-1.4-3-1.4-2 0-3.4 1.5-3.4 3.5s1.4 3.5 3.4 3.5c1.4 0 2.4-.5 3.1-1.5l2.3 1.8c-1.2 1.7-3 2.8-5.4 2.8-3.8 0-6.5-2.8-6.5-6.6z" fill="#0f172a"/>
+	<path d="M34.8 26.2h3.3l2.6 8.5 2.7-8.5h3.2l-4.3 12.6h-3.2z" fill="#059669"/>
+</svg>

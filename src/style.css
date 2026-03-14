@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer base {
+  .font-sans { font-family: ui-sans-serif, system-ui, sans-serif; }
+  .font-serif { font-family: ui-serif, Georgia, serif; }
+  .font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  
+  body { 
+    background: white !important; 
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #cv-preview-container { 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 210mm; 
+    height: 297mm; 
+    margin: 0; 
+    padding: 0; 
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  @page { 
+    margin: 0; 
+    size: A4; 
+  }
+}
