@@ -14,7 +14,9 @@ import {
   Mail,
   Lock,
   User,
-  RefreshCcw
+  RefreshCcw,
+  Download,
+  History
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import api from '../lib/api';
@@ -24,6 +26,9 @@ const router = useRouter();
 const usuarios = ref([]);
 const loading = ref(false);
 const processando = ref(false);
+const logsAtividade = ref([]);
+const loadingLogs = ref(false);
+const baixandoBackup = ref(false);
 
 const modalNovoUsuarioAberto = ref(false);
 const modalPlanoAberto = ref(false);
@@ -108,6 +113,23 @@ const carregarUsuarios = async () => {
   }
 };
 
+const carregarLogsAtividade = async () => {
+  loadingLogs.value = true;
+
+  try {
+    const { data } = await api.get('/admin/activity-logs?limit=120');
+    logsAtividade.value = Array.isArray(data) ? data : [];
+  } catch {
+    logsAtividade.value = [];
+  } finally {
+    loadingLogs.value = false;
+  }
+};
+
+const atualizarPainel = async () => {
+  await Promise.all([carregarUsuarios(), carregarLogsAtividade()]);
+};
+
 const abrirModalNovoUsuario = () => {
   novoUsuario.nome = '';
   novoUsuario.email = '';
@@ -144,7 +166,7 @@ const criarUsuario = async () => {
 
     toast.success('Usuário criado com sucesso.');
     fecharModalNovoUsuario();
-    await carregarUsuarios();
+    await atualizarPainel();
   } finally {
     processando.value = false;
   }
@@ -180,7 +202,7 @@ const salvarPlanoUsuario = async () => {
 
     toast.success('Plano atualizado com sucesso.');
     fecharModalPlano();
-    await carregarUsuarios();
+    await atualizarPainel();
   } finally {
     processando.value = false;
   }
@@ -195,9 +217,75 @@ const alternarStatusRapido = async (usuario) => {
     });
 
     usuario.status = novoStatus;
+    await carregarLogsAtividade();
     toast.success(`Usuário ${novoStatus === 'ativo' ? 'ativado' : 'desativado'} com sucesso.`);
   } catch {
     toast.error('Não foi possível alterar o status.');
+  }
+};
+
+const formatarDataHora = (dataIso) => {
+  if (!dataIso) return '-';
+
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'medium'
+    }).format(new Date(dataIso));
+  } catch {
+    return dataIso;
+  }
+};
+
+const getAcaoLabel = (acao) => {
+  const labels = {
+    LOGIN_SUCESSO: 'Login',
+    LOGIN_FALHO: 'Login falhou',
+    CV_CRIADO: 'CV criado',
+    CV_EDITADO: 'CV editado',
+    CV_EXCLUIDO: 'CV excluído',
+    ADMIN_USUARIO_CRIADO: 'Usuário criado',
+    ADMIN_USUARIO_ATUALIZADO: 'Usuário atualizado',
+    ADMIN_BACKUP_CVS_GERADO: 'Backup CVs'
+  };
+
+  return labels[acao] || acao;
+};
+
+const getAcaoBadgeClass = (acao) => {
+  if (acao === 'LOGIN_SUCESSO') return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+  if (acao === 'LOGIN_FALHO') return 'bg-red-50 text-red-600 border-red-200';
+  if (acao.startsWith('CV_')) return 'bg-blue-50 text-blue-600 border-blue-200';
+  if (acao.startsWith('ADMIN_')) return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+};
+
+const baixarBackupCVs = async () => {
+  baixandoBackup.value = true;
+
+  try {
+    const response = await api.get('/admin/backups/cvs', {
+      responseType: 'blob'
+    });
+
+    const blob = new Blob([response.data], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `backup-cvs-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    await carregarLogsAtividade();
+    toast.success('Backup de currículos baixado com sucesso.');
+  } catch {
+    toast.error('Não foi possível baixar o backup dos currículos.');
+  } finally {
+    baixandoBackup.value = false;
   }
 };
 
@@ -206,7 +294,7 @@ const handleLogout = () => {
   window.location.href = '/login';
 };
 
-onMounted(carregarUsuarios);
+onMounted(atualizarPainel);
 </script>
 
 <template>
@@ -230,7 +318,7 @@ onMounted(carregarUsuarios);
 
         <div class="flex gap-2">
           <button
-            @click="carregarUsuarios"
+            @click="atualizarPainel"
             type="button"
             class="bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl text-xs font-black uppercase flex items-center gap-2"
           >
@@ -271,7 +359,7 @@ onMounted(carregarUsuarios);
         </div>
 
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-left min-w-[960px]">
+          <table class="w-full text-left min-w-240">
             <thead class="bg-slate-50 border-b border-slate-100">
               <tr>
                 <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
@@ -359,6 +447,86 @@ onMounted(carregarUsuarios);
                       Gerenciar
                     </button>
                   </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100">
+        <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-black text-slate-800">Monitoramento</h2>
+            <p class="text-sm text-slate-500">
+              Horário de login, edições e ações administrativas.
+            </p>
+          </div>
+
+          <button
+            @click="baixarBackupCVs"
+            :disabled="baixandoBackup"
+            type="button"
+            class="px-4 py-3 rounded-2xl bg-slate-900 text-white text-xs font-black uppercase flex items-center gap-2 disabled:opacity-70"
+          >
+            <Loader2 v-if="baixandoBackup" size="14" class="animate-spin" />
+            <Download v-else size="14" />
+            Backup currículos
+          </button>
+        </div>
+
+        <div v-if="loadingLogs" class="p-6 text-sm text-slate-400">
+          Carregando atividade...
+        </div>
+
+        <div v-else-if="!logsAtividade.length" class="p-6 text-sm text-slate-500">
+          Nenhum evento de atividade registrado ainda.
+        </div>
+
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left min-w-240">
+            <thead class="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Data/Hora</th>
+                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Ação</th>
+                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
+                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recurso</th>
+                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Origem</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="log in logsAtividade" :key="log._id" class="hover:bg-slate-50/70">
+                <td class="p-5 text-sm text-slate-700 font-semibold whitespace-nowrap">
+                  {{ formatarDataHora(log.createdAt) }}
+                </td>
+
+                <td class="p-5">
+                  <span
+                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
+                    :class="getAcaoBadgeClass(log.action || '')"
+                  >
+                    <History size="12" />
+                    {{ getAcaoLabel(log.action) }}
+                  </span>
+                </td>
+
+                <td class="p-5">
+                  <div class="font-bold text-sm text-slate-700">{{ log.actorNome || '-' }}</div>
+                  <div class="text-[11px] text-slate-400">{{ log.actorEmail || '-' }}</div>
+                </td>
+
+                <td class="p-5 text-sm text-slate-600">
+                  <div class="font-semibold uppercase text-[11px] tracking-widest text-slate-500">
+                    {{ log.resourceType || '-' }}
+                  </div>
+                  <div class="text-[11px] text-slate-400 mt-1 break-all">
+                    {{ log.resourceId || '-' }}
+                  </div>
+                </td>
+
+                <td class="p-5 text-sm text-slate-500">
+                  <div class="font-mono text-[11px]">{{ log.ip || '-' }}</div>
                 </td>
               </tr>
             </tbody>
