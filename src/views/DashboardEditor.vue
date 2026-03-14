@@ -35,15 +35,15 @@ import { toast } from 'vue-sonner';
 const router = useRouter();
 const route = useRoute();
 
-const SUPORTE_HORARIO = process.env.VITE_SUPORTE_HORARIO;
-const SUPORTE_EMAIL = process.env.VITE_SUPORTE_EMAIL;
-const SUPORTE_WHATSAPP = process.env.VITE_SUPORTE_WHATSAPP;
+const SUPORTE_HORARIO = import.meta.env.VITE_SUPORTE_HORARIO;
+const SUPORTE_EMAIL = import.meta.env.VITE_SUPORTE_EMAIL;
+const SUPORTE_WHATSAPP = import.meta.env.VITE_SUPORTE_WHATSAPP;
 
 const PRECOS_PLANOS = {
-  lite: process.env.VITE_PRECO_LITE,
-  pro: process.env.VITE_PRECO_PRO,
-  vitalicio: process.env.VITE_PRECO_VITALICIO,
-  premiumExtra: process.env.VITE_PRECO_PREMIUM_EXTRA
+  lite: import.meta.env.VITE_PRECO_LITE,
+  pro: import.meta.env.VITE_PRECO_PRO,
+  vitalicio: import.meta.env.VITE_PRECO_VITALICIO,
+  premiumExtra: import.meta.env.VITE_PRECO_PREMIUM_EXTRA
 };
 
 const solicitarUpgradeEmail = () => {
