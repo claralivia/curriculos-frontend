@@ -1,11 +1,14 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { LogIn, Loader2, Mail, Lock, ShieldCheck } from 'lucide-vue-next';
+import { LogIn, Loader2, Mail, Lock, ShieldCheck, Activity } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import api from '../lib/api';
 
 const router = useRouter();
+
+const STATUS_URL = import.meta.env.VITE_STATUS_URL;
+const SUPORTE_EMAIL = import.meta.env.VITE_SUPORTE_EMAIL;
 
 const form = reactive({
   email: '',
@@ -43,6 +46,8 @@ const handleLogin = async () => {
     }
 
     router.push('/dashboard');
+  } catch (error) {
+    toast.error('Falha ao autenticar. Verifique suas credenciais.');
   } finally {
     loading.value = false;
   }
@@ -87,7 +92,7 @@ const handleLogin = async () => {
                   <input
                     v-model="form.email"
                     type="email"
-                    placeholder="voce@empresa.com"
+                    placeholder="voce@email.com"
                     required
                     autocomplete="email"
                     class="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
@@ -123,15 +128,26 @@ const handleLogin = async () => {
             </button>
           </form>
 
-          <div class="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-              Conta inativa ou sem acesso?
-            </p>
+          <div class="mt-8 pt-6 border-t border-slate-100 text-center space-y-4">
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                Conta inativa ou sem acesso?
+              </p>
+              <a
+                :href="`mailto:${SUPORTE_EMAIL}?subject=Solicitação de acesso&body=Olá, meu e-mail é: ${form.email}`"
+                class="mt-1 inline-block text-sm font-semibold text-emerald-600 hover:underline"
+              >
+                Fale com a administração
+              </a>
+            </div>
+
             <a
-              href="`mailto:${process.env.VITE_SUPORTE_EMAIL}?subject=Solicitação de acesso ao CV Studio&body=Olá, gostaria de solicitar acesso ao CV Studio. Meu e-mail é ${form.email}.`"
-              class="mt-2 inline-block text-sm font-semibold text-emerald-600 hover:underline"
+              :href="STATUS_URL"
+              target="_blank"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:bg-slate-100 hover:text-slate-600 transition-colors"
             >
-              Fale com a administração
+              <Activity size="12" />
+              Status do Sistema
             </a>
           </div>
         </div>
