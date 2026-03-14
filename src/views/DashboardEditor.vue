@@ -537,32 +537,90 @@ const baixarPDF = () => {
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageWidth = pageWidth;
-      const pageContentHeight = pageHeight;
-      const imageHeight = (canvas.height * imageWidth) / canvas.width;
-      const imageData = canvas.toDataURL('image/png');
-      const pageTolerance = 0.5;
+      const firstPageTopMargin = 0;
+      const nextPagesTopMargin = 10;
+      const marginBottom = 0;
+      const marginHorizontal = 0;
+      const imageWidth = pageWidth - marginHorizontal * 2;
+      const mmPerCanvasPx = imageWidth / canvas.width;
+      const firstPageContentPx = (pageHeight - firstPageTopMargin - marginBottom) / mmPerCanvasPx;
+      const nextPagesContentPx = (pageHeight - nextPagesTopMargin - marginBottom) / mmPerCanvasPx;
+      const maxCanvasY = canvas.height;
 
-      if (!imageData || !imageData.startsWith('data:image/png;base64,iVBOR')) {
-        throw new Error('Canvas inválido ou corrompido ao gerar o PDF.');
-      }
+      const elementoRect = elemento.getBoundingClientRect();
+      const escalaCanvas = canvas.height / elementoRect.height;
 
-      if (imageHeight <= pageContentHeight + pageTolerance) {
-        pdf.addImage(imageData, 'PNG', 0, 0, imageWidth, imageHeight);
-      } else {
-        let heightLeft = imageHeight;
-        let position = 0;
+      const blocosSecao = Array.from(elemento.querySelectorAll('.cv-content > .cv-section'))
+        .map((bloco) => {
+          if (!(bloco instanceof HTMLElement)) return null;
+          const rect = bloco.getBoundingClientRect();
+          const top = (rect.top - elementoRect.top) * escalaCanvas;
+          const bottom = (rect.bottom - elementoRect.top) * escalaCanvas;
 
-        pdf.addImage(imageData, 'PNG', 0, position, imageWidth, imageHeight);
-        heightLeft -= pageContentHeight;
+          return { top, bottom };
+        })
+        .filter((bloco) => bloco && bloco.top >= 0 && bloco.bottom > bloco.top)
+        .sort((a, b) => a.top - b.top);
 
-        while (heightLeft > pageTolerance) {
-          position -= pageContentHeight;
-          pdf.addPage();
-          pdf.addImage(imageData, 'PNG', 0, position, imageWidth, imageHeight);
-          heightLeft -= pageContentHeight;
+      const cortes = [];
+      let cursor = 0;
+
+      while (cursor < maxCanvasY) {
+        const isFirstSlice = cortes.length === 0;
+        const pageContentPx = isFirstSlice ? firstPageContentPx : nextPagesContentPx;
+        const idealFim = cursor + pageContentPx;
+
+        if (idealFim >= maxCanvasY) {
+          cortes.push([cursor, maxCanvasY]);
+          break;
         }
+
+        let fim = idealFim;
+
+        const secaoCortada = blocosSecao.find((bloco) => bloco.top < fim && bloco.bottom > fim);
+
+        if (secaoCortada && secaoCortada.top > cursor + 1) {
+          fim = secaoCortada.top;
+        }
+
+        // fallback para evitar loop em casos extremos (seção maior do que uma página)
+        if (fim <= cursor + 1) {
+          fim = idealFim;
+        }
+
+        cortes.push([cursor, fim]);
+        cursor = fim;
       }
+
+      if (!cortes.length) {
+        throw new Error('Não foi possível montar as páginas do PDF.');
+      }
+
+      cortes.forEach(([inicio, fim], indice) => {
+        const sliceHeight = Math.max(1, Math.round(fim - inicio));
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeight;
+
+        const ctx = pageCanvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Falha ao criar contexto da página do PDF.');
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(canvas, 0, inicio, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+        const imageData = pageCanvas.toDataURL('image/png');
+        if (!imageData || !imageData.startsWith('data:image/png;base64,iVBOR')) {
+          throw new Error('Página do PDF inválida ou corrompida.');
+        }
+
+        const renderHeight = sliceHeight * mmPerCanvasPx;
+        const topMargin = indice === 0 ? firstPageTopMargin : nextPagesTopMargin;
+        if (indice > 0) pdf.addPage();
+        pdf.addImage(imageData, 'PNG', marginHorizontal, topMargin, imageWidth, renderHeight);
+      });
 
       pdf.save(nomeArquivo);
       toast.success('Download concluído');
