@@ -46,6 +46,12 @@ const PRECOS_PLANOS = {
   premiumExtra: process.env.VITE_PRECO_PREMIUM_EXTRA
 };
 
+const solicitarUpgradeEmail = () => {
+  const assunto = encodeURIComponent('Solicitação de atualização de plano - CV Studio');
+  const corpo = encodeURIComponent(mensagemUpgrade.value);
+  window.location.href = `mailto:${SUPORTE_EMAIL}?subject=${assunto}&body=${corpo}`;
+};
+
 const idAtivo = computed(() => route.params.id);
 
 const loading = reactive({
@@ -471,6 +477,19 @@ const aplicarFallbackCoresNoClone = (doc) => {
   });
 };
 
+const urlParaBase64 = (url) =>
+  fetch(url, { cache: 'no-cache', mode: 'cors' })
+    .then((res) => res.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        })
+    );
+
 const baixarPDF = () => {
   const previewContainer = document.getElementById('cv-preview-container');
   const elemento = previewContainer?.querySelector('.cv-page');
@@ -488,12 +507,24 @@ const baixarPDF = () => {
     skipAutoScale: true,
     width: canvasWidth,
     height: canvasHeight,
-    canvasWidth: canvasWidth * 2,
-    canvasHeight: canvasHeight * 2,
     style: {
       transform: 'none',
       boxShadow: 'none',
       margin: '0'
+    },
+    onclone: async (_doc, el) => {
+      const imgs = el.querySelectorAll('img');
+      await Promise.all(
+        Array.from(imgs).map(async (img) => {
+          if (img.src && !img.src.startsWith('data:')) {
+            try {
+              img.src = await urlParaBase64(img.src);
+            } catch (_) {
+              // mantém o src original se o fetch falhar
+            }
+          }
+        })
+      );
     }
   })
     .then((canvas) => {
@@ -511,6 +542,10 @@ const baixarPDF = () => {
       const imageHeight = (canvas.height * imageWidth) / canvas.width;
       const imageData = canvas.toDataURL('image/png');
       const pageTolerance = 0.5;
+
+      if (!imageData || !imageData.startsWith('data:image/png;base64,iVBOR')) {
+        throw new Error('Canvas inválido ou corrompido ao gerar o PDF.');
+      }
 
       if (imageHeight <= pageContentHeight + pageTolerance) {
         pdf.addImage(imageData, 'PNG', 0, 0, imageWidth, imageHeight);
@@ -1122,6 +1157,7 @@ onMounted(carregarDadosIniciais);
       @close="modals.upgrade = false"
       @select="tipoSolicitacaoUpgrade = $event"
       @whatsapp="solicitarUpgradeWhatsApp"
+      @email="solicitarUpgradeEmail"
     />
   </div>
 </template>
