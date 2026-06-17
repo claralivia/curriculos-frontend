@@ -26,11 +26,13 @@ import {
   X,
   AlertTriangle,
   Eye,
+  EyeOff,
   PencilLine,
   LogOut,
   GripVertical,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  CheckCircle2
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 
@@ -64,6 +66,8 @@ const loading = reactive({
   upload: false
 });
 
+const statusSalvamento = ref('');
+
 const modals = reactive({
   section: false,
   deleteCv: false,
@@ -95,6 +99,8 @@ const cv = reactive({
     exibirSubtitulo: true,
     tamanhoFoto: 'medio',
     formatoFoto: 'circulo',
+    espacamento: 'padrao',
+    modeloCabecalho: 'modelo1',
     caixaAlta: {
       nome: true,
       cargo: true,
@@ -238,12 +244,14 @@ const normalizarSecao = (secao = {}) => ({
   titulo: secao.titulo || '',
   tipo: secao.tipo === 'itens' ? 'itens' : 'texto',
   conteudo: secao.conteudo || '',
+  visivel: secao.visivel !== false,
   itens: Array.isArray(secao.itens)
     ? secao.itens.map((item) => ({
         id: item.id || criarId(),
         titulo: item.titulo || '',
         subtitulo: item.subtitulo || '',
-        descricao: item.descricao || ''
+        descricao: item.descricao || '',
+        visivel: item.visivel !== false
       }))
     : []
 });
@@ -278,6 +286,8 @@ const carregarDadosIniciais = async () => {
         exibirSubtitulo: cvRes?.estilizacao?.exibirSubtitulo ?? true,
         tamanhoFoto: cvRes?.estilizacao?.tamanhoFoto || 'medio',
         formatoFoto: cvRes?.estilizacao?.formatoFoto || 'circulo',
+        espacamento: cvRes?.estilizacao?.espacamento || 'padrao',
+        modeloCabecalho: cvRes?.estilizacao?.modeloCabecalho || 'modelo1',
         caixaAlta: cvRes?.estilizacao?.caixaAlta || {
           nome: true,
           cargo: true,
@@ -318,8 +328,11 @@ const salvar = _.debounce(async () => {
 
   try {
     await api.put(`/cv/${idAtivo.value}`, cv, { silent: true });
+    statusSalvamento.value = 'salvo';
+    setTimeout(() => { if (statusSalvamento.value === 'salvo') statusSalvamento.value = ''; }, 2000);
   } catch (error) {
     console.error(error);
+    statusSalvamento.value = 'erro';
   }
 }, 1000);
 
@@ -415,7 +428,8 @@ const adicionarItem = (secao) => {
     id: criarId(),
     titulo: '',
     subtitulo: '',
-    descricao: ''
+    descricao: '',
+    visivel: true
   });
 };
 
@@ -442,7 +456,8 @@ const alternarTipo = (secao) => {
     id: item.id || criarId(),
     titulo: item.titulo || '',
     subtitulo: item.subtitulo || '',
-    descricao: item.descricao || ''
+    descricao: item.descricao || '',
+    visivel: item.visivel !== false
   }));
 
   if (!secao.itens.length) {
@@ -525,12 +540,13 @@ const aplicarFallbackCoresNoClone = (doc) => {
   const iconSvgs = doc.querySelectorAll('.cv-header__meta-icon-svg');
   iconSvgs.forEach((svg) => {
     if (!(svg instanceof win.SVGElement)) return;
+    const computedColor = win.getComputedStyle(svg).color;
     svg.style.setProperty('display', 'block', 'important');
     svg.style.setProperty('width', '12px', 'important');
     svg.style.setProperty('height', '12px', 'important');
     svg.style.setProperty('overflow', 'visible', 'important');
     svg.style.setProperty('vertical-align', 'middle', 'important');
-    svg.style.setProperty('color', 'rgba(255, 255, 255, 0.95)', 'important');
+    svg.style.setProperty('color', computedColor, 'important');
   });
 
   const metaLabels = doc.querySelectorAll('.cv-header__meta-label');
@@ -740,6 +756,7 @@ const logout = () => {
 watch(
   cv,
   () => {
+    statusSalvamento.value = 'salvando';
     salvar();
   },
   { deep: true }
@@ -787,9 +804,18 @@ onUnmounted(() => {
             <h1 class="text-xl font-black tracking-tight bg-linear-to-r from-slate-900 to-slate-500 bg-clip-text text-transparent">
               CV Studio
             </h1>
-            <p class="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
-              Builder Professional
-            </p>
+            <div class="flex items-center gap-2">
+              <p class="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                Builder Professional
+              </p>
+              
+              <div v-if="statusSalvamento" class="text-[8px] font-black uppercase tracking-widest flex items-center gap-1" :class="statusSalvamento === 'salvo' ? 'text-emerald-500' : statusSalvamento === 'erro' ? 'text-red-500' : 'text-slate-400'">
+                <Loader2 v-if="statusSalvamento === 'salvando'" size="10" class="animate-spin" />
+                <CheckCircle2 v-else-if="statusSalvamento === 'salvo'" size="10" />
+                <AlertTriangle v-else size="10" />
+                <span class="hidden md:inline">{{ statusSalvamento === 'salvando' ? 'Salvando...' : statusSalvamento === 'salvo' ? 'Salvo' : 'Erro ao salvar' }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -869,7 +895,24 @@ onUnmounted(() => {
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
-              <span class="text-[10px] font-black uppercase text-slate-400">Caixa Alta (Maiúsculas)</span>
+              <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
+                <span class="text-[10px] font-black uppercase text-slate-400">Espaçamento</span>
+                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                  <button v-for="t in [{v: 'compacto', l: 'P'}, {v: 'padrao', l: 'M'}, {v: 'espacoso', l: 'G'}]" :key="t.v" @click="cv.estilizacao.espacamento = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.espacamento === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                    {{ t.l }}
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
+                <span class="text-[10px] font-black uppercase text-slate-400">Cabeçalho</span>
+                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                  <button v-for="t in [{v: 'modelo1', l: 'Padrão'}, {v: 'modelo2', l: 'Invert.'}, {v: 'modelo3', l: 'Clean'}]" :key="t.v" @click="cv.estilizacao.modeloCabecalho = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.modeloCabecalho === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                    {{ t.l }}
+                  </button>
+                </div>
+              </div>
+              
+              <span class="text-[10px] font-black uppercase text-slate-400 block pt-1">Caixa Alta (Maiúsculas)</span>
               <div class="grid grid-cols-2 gap-2">
                 <label
                   v-for="opt in [
@@ -1108,6 +1151,7 @@ onUnmounted(() => {
               @dragover.prevent.stop
               @drop.stop="onDrop($event, i, 'secao')"
               class="p-5 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 group/sec relative transition-all"
+              :class="secao.visivel === false ? 'opacity-50 grayscale bg-slate-100' : ''"
             >
               <div class="flex items-center gap-3">
                 <GripVertical size="16" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block" />
@@ -1127,6 +1171,15 @@ onUnmounted(() => {
                 />
 
                 <div class="flex gap-1">
+                  <button
+                    @click="secao.visivel = secao.visivel === false ? true : false"
+                    class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-500 transition-all"
+                    :title="secao.visivel === false ? 'Mostrar seção' : 'Ocultar seção'"
+                  >
+                    <EyeOff v-if="secao.visivel === false" size="14" />
+                    <Eye v-else size="14" />
+                  </button>
+
                   <button
                     @click="alternarTipo(secao)"
                     class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black uppercase text-slate-500 hover:border-emerald-500 transition-all"
@@ -1159,7 +1212,8 @@ onUnmounted(() => {
                   @dragenter.prevent.stop
                   @dragover.prevent.stop
                   @drop.stop="onDrop($event, j, 'item', i)"
-                  class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2"
+                  class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2 transition-all"
+                  :class="item.visivel === false ? 'opacity-50 bg-slate-50' : ''"
                 >
                   <div class="flex justify-between items-center mb-2">
                     <div class="flex items-center gap-2">
@@ -1179,9 +1233,15 @@ onUnmounted(() => {
                       </span>
                     </div>
 
-                    <button @click="secao.itens.splice(j, 1)" class="text-slate-300 hover:text-red-400">
-                      <X size="12" />
-                    </button>
+                    <div class="flex items-center">
+                      <button @click="item.visivel = item.visivel === false ? true : false" class="text-slate-300 hover:text-emerald-500 mr-2 p-1">
+                        <EyeOff v-if="item.visivel === false" size="12" />
+                        <Eye v-else size="12" />
+                      </button>
+                      <button @click="secao.itens.splice(j, 1)" class="text-slate-300 hover:text-red-400 p-1">
+                        <X size="12" />
+                      </button>
+                    </div>
                   </div>
 
                   <input

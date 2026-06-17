@@ -176,6 +176,34 @@ const criarNovoCV = async () => {
   }
 };
 
+const duplicarCV = async (cv) => {
+  if (!podeCriarTemplate.value) {
+    abrirModalUpgrade('pro');
+    return;
+  }
+
+  try {
+    const { data: cvOriginal } = await api.get(`/cv/${cv._id}`);
+    const copia = { ...cvOriginal };
+    
+    delete copia._id;
+    delete copia.__v;
+    delete copia.createdAt;
+    delete copia.updatedAt;
+    
+    copia.tituloDocumento = `${copia.tituloDocumento || 'Currículo'} (Cópia)`;
+
+    const { data: criado } = await api.post('/cv/new', { tituloDocumento: copia.tituloDocumento });
+    await api.put(`/cv/${criado._id}`, copia, { silent: true });
+
+    toast.success('Currículo duplicado com sucesso.');
+    await carregarCurriculos();
+  } catch (error) {
+    console.error(error);
+    toast.error('Não foi possível duplicar o currículo.');
+  }
+};
+
 const abrirModalUpgrade = (tipo = 'pro') => {
   tipoSolicitacaoUpgrade.value = tipo;
   modalUpgradeAberto.value = true;
@@ -297,8 +325,10 @@ onMounted(carregarDados);
             :key="cv._id"
             :cv="cv"
             :pode-excluir="podeExcluirTemplate"
+            :pode-duplicar="podeCriarTemplate"
             @edit="editarCV"
             @delete="excluirCV"
+            @duplicate="duplicarCV"
           />
 
           <button

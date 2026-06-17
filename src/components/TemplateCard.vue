@@ -1,4 +1,6 @@
 <script setup>
+import { Copy } from 'lucide-vue-next';
+
 const props = defineProps({
   cv: {
     type: Object,
@@ -7,10 +9,14 @@ const props = defineProps({
   podeExcluir: {
     type: Boolean,
     default: false
+  },
+  podeDuplicar: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['edit', 'delete']);
+const emit = defineEmits(['edit', 'delete', 'duplicate']);
 
 const corPrincipal = props.cv?.estilizacao?.corPrincipal || '#4f9d76';
 </script>
@@ -50,6 +56,16 @@ const corPrincipal = props.cv?.estilizacao?.corPrincipal || '#4f9d76';
           class="flex-1 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase"
         >
           Editar
+        </button>
+
+        <button
+          @click="emit('duplicate', cv)"
+          type="button"
+          :disabled="!podeDuplicar"
+          title="Duplicar currículo"
+          class="px-4 py-3 rounded-2xl text-slate-400 hover:text-blue-500 bg-slate-50 border border-slate-200 transition-colors disabled:opacity-50"
+        >
+          <Copy size="14" />
         </button>
 
         <button

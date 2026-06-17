@@ -75,8 +75,11 @@ const infoContatoHeader = computed(() => {
   <div
     :class="[
       'cv-page w-[210mm] bg-white mx-auto overflow-hidden print:shadow-none relative',
-      fonteClasse
+      fonteClasse,
+      'espacamento-' + (cv.estilizacao?.espacamento || 'padrao'),
+      'modelo-' + (cv.estilizacao?.modeloCabecalho || 'modelo1')
     ]"
+    :style="{ '--cor-principal': corPrincipal }"
   >
     <div v-if="mostrarMarcaDagua" class="cv-watermark">
       CV STUDIO
@@ -155,41 +158,43 @@ const infoContatoHeader = computed(() => {
                 </p>
               </section>
 
-              <section
-                v-for="secao in secoes"
-                :key="secao.id"
-                class="cv-section"
-              >
-                <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal, textTransform: caixaAlta.titulosSecao ? 'uppercase' : 'none' }">
-                  {{ secao.titulo }}
-                </h2>
+              <template v-for="secao in secoes" :key="secao.id">
+                <section
+                  v-if="secao.visivel !== false"
+                  class="cv-section"
+                >
+                  <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal, textTransform: caixaAlta.titulosSecao ? 'uppercase' : 'none' }">
+                    {{ secao.titulo }}
+                  </h2>
 
-                <div v-if="secao.tipo === 'texto'" class="cv-section__text whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
-                  {{ secao.conteudo }}
-                </div>
+                  <div v-if="secao.tipo === 'texto'" class="cv-section__text whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
+                    {{ secao.conteudo }}
+                  </div>
 
-                <div v-else class="cv-items">
-                  <article
-                    v-for="(item, index) in secao.itens || []"
-                    :key="item.id || `${secao.id}-${index}`"
-                    class="cv-item"
-                  >
-                    <div class="cv-item__header">
-                      <h3 class="cv-item__title" :style="{ textTransform: caixaAlta.titulosItem ? 'uppercase' : 'none' }">
-                        {{ item.titulo }}
-                      </h3>
+                  <div v-else class="cv-items">
+                    <template v-for="(item, index) in secao.itens || []" :key="item.id || `${secao.id}-${index}`">
+                      <article
+                        v-if="item.visivel !== false"
+                        class="cv-item"
+                      >
+                        <div class="cv-item__header">
+                          <h3 class="cv-item__title" :style="{ textTransform: caixaAlta.titulosItem ? 'uppercase' : 'none' }">
+                            {{ item.titulo }}
+                          </h3>
 
-                      <span v-if="item.subtitulo" class="cv-item__subtitle" :style="{ textTransform: caixaAlta.subtitulosItem ? 'uppercase' : 'none' }">
-                        {{ item.subtitulo }}
-                      </span>
-                    </div>
+                          <span v-if="item.subtitulo" class="cv-item__subtitle" :style="{ textTransform: caixaAlta.subtitulosItem ? 'uppercase' : 'none' }">
+                            {{ item.subtitulo }}
+                          </span>
+                        </div>
 
-                    <p v-if="item.descricao" class="cv-item__description whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
-                      {{ item.descricao }}
-                    </p>
-                  </article>
-                </div>
-              </section>
+                        <p v-if="item.descricao" class="cv-item__description whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
+                          {{ item.descricao }}
+                        </p>
+                      </article>
+                    </template>
+                  </div>
+                </section>
+              </template>
             </main>
           </td>
         </tr>
@@ -311,11 +316,9 @@ const infoContatoHeader = computed(() => {
 }
 
 .cv-content {
-  padding: 10mm 14mm 12mm;
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  gap: 6mm;
 }
 
 .cv-section {
@@ -324,8 +327,7 @@ const infoContatoHeader = computed(() => {
 }
 
 .cv-section__title {
-  margin: 0 0 3mm;
-  padding-bottom: 1.5mm;
+  margin: 0;
   border-bottom-width: 1.5px;
   border-bottom-style: solid;
   font-size: 13px;
@@ -343,7 +345,6 @@ const infoContatoHeader = computed(() => {
 .cv-items {
   display: flex;
   flex-direction: column;
-  gap: 4mm;
 }
 
 .cv-item {
@@ -380,6 +381,68 @@ const infoContatoHeader = computed(() => {
   font-size: 11px;
   line-height: 1.7;
   color: rgb(71 85 105);
+}
+
+/* Espaçamentos */
+.espacamento-compacto .cv-content {
+  padding: 8mm 14mm 10mm;
+  gap: 4mm;
+}
+.espacamento-compacto .cv-section__title {
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
+}
+.espacamento-compacto .cv-items {
+  gap: 2.5mm;
+}
+
+.espacamento-padrao .cv-content {
+  padding: 10mm 14mm 12mm;
+  gap: 6mm;
+}
+.espacamento-padrao .cv-section__title {
+  padding-bottom: 1.5mm;
+  margin-bottom: 3mm;
+}
+.espacamento-padrao .cv-items {
+  gap: 4mm;
+}
+
+.espacamento-espacoso .cv-content {
+  padding: 12mm 14mm 14mm;
+  gap: 8mm;
+}
+.espacamento-espacoso .cv-section__title {
+  padding-bottom: 2.5mm;
+  margin-bottom: 4mm;
+}
+.espacamento-espacoso .cv-items {
+  gap: 6.5mm;
+}
+
+/* Modelos de Cabeçalho */
+.modelo-modelo2 .cv-header__layout {
+  flex-direction: row-reverse;
+}
+
+.modelo-modelo3 .cv-header {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-bottom: 4mm solid var(--cor-principal);
+  padding-top: 14mm;
+}
+.modelo-modelo3 .cv-header__meta-icon-svg {
+  color: var(--cor-principal) !important;
+  opacity: 1;
+}
+.modelo-modelo3 .cv-header__role {
+  color: var(--cor-principal) !important;
+}
+.modelo-modelo3 .cv-header__meta {
+  border-top-color: rgb(15 23 42 / 0.1);
+}
+.modelo-modelo3 .cv-header__photo {
+  border-color: var(--cor-principal);
 }
 
 .font-sans {
