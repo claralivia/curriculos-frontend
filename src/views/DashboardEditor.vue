@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, onMounted, watch } from 'vue';
+import { computed, reactive, ref, onMounted, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import _ from 'lodash';
 import { toCanvas } from 'html-to-image';
@@ -28,7 +28,9 @@ import {
   Eye,
   PencilLine,
   LogOut,
-  GripVertical
+  GripVertical,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 
@@ -90,7 +92,18 @@ const cv = reactive({
     corPrincipal: '#4f9d76',
     fontFamily: 'font-sans',
     exibirFoto: true,
-    exibirSubtitulo: true
+    exibirSubtitulo: true,
+    tamanhoFoto: 'medio',
+    formatoFoto: 'circulo',
+    caixaAlta: {
+      nome: true,
+      cargo: true,
+      contatos: true,
+      titulosSecao: true,
+      titulosItem: true,
+      subtitulosItem: true,
+      textosGerais: false
+    }
   },
   secoes: [],
   dados: {
@@ -108,6 +121,46 @@ const cv = reactive({
     }
   }
 });
+
+const mobileScaleStyle = ref('');
+
+const adjustScale = () => {
+  if (window.innerWidth < 768) {
+    const scale = (window.innerWidth - 32) / 794;
+    mobileScaleStyle.value = `transform: scale(${scale}); transform-origin: top center; margin-bottom: -${297 * (1 - scale)}mm;`;
+  } else {
+    mobileScaleStyle.value = '';
+  }
+};
+
+const dragData = reactive({ index: null, type: null, parentIndex: null });
+
+const onDragStart = (e, index, type, parentIndex = null) => {
+  dragData.index = index;
+  dragData.type = type;
+  dragData.parentIndex = parentIndex;
+  e.dataTransfer.effectAllowed = 'move';
+};
+
+const onDrop = (e, targetIndex, type, parentIndex = null) => {
+  if (dragData.type !== type || dragData.parentIndex !== parentIndex || dragData.index === targetIndex) return;
+
+  const list = type === 'secao' ? cv.secoes : cv.secoes[parentIndex].itens;
+  const [movedItem] = list.splice(dragData.index, 1);
+  list.splice(targetIndex, 0, movedItem);
+
+  dragData.index = null;
+  dragData.type = null;
+  dragData.parentIndex = null;
+};
+
+const moverItem = (list, index, direction) => {
+  const novoIndex = index + direction;
+  if (novoIndex < 0 || novoIndex >= list?.length) return;
+  const temp = list[index];
+  list[index] = list[novoIndex];
+  list[novoIndex] = temp;
+};
 
 const coresRapidas = ['#4f9d76', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#ea580c', '#334155', '#111827'];
 const fontesDisponiveis = [
@@ -222,7 +275,18 @@ const carregarDadosIniciais = async () => {
         corPrincipal: cvRes?.estilizacao?.corPrincipal || '#4f9d76',
         fontFamily: cvRes?.estilizacao?.fontFamily || 'font-sans',
         exibirFoto: cvRes?.estilizacao?.exibirFoto ?? true,
-        exibirSubtitulo: cvRes?.estilizacao?.exibirSubtitulo ?? true
+        exibirSubtitulo: cvRes?.estilizacao?.exibirSubtitulo ?? true,
+        tamanhoFoto: cvRes?.estilizacao?.tamanhoFoto || 'medio',
+        formatoFoto: cvRes?.estilizacao?.formatoFoto || 'circulo',
+        caixaAlta: cvRes?.estilizacao?.caixaAlta || {
+          nome: true,
+          cargo: true,
+          contatos: true,
+          titulosSecao: true,
+          titulosItem: true,
+          subtitulosItem: true,
+          textosGerais: false
+        }
       },
       secoes: Array.isArray(cvRes?.secoes) ? cvRes.secoes.map(normalizarSecao) : [],
       dados: {
@@ -381,7 +445,7 @@ const alternarTipo = (secao) => {
     descricao: item.descricao || ''
   }));
 
-  if (secao.itens.length === 0) {
+  if (!secao.itens.length) {
     adicionarItem(secao);
   }
 };
@@ -490,7 +554,13 @@ const urlParaBase64 = (url) =>
         })
     );
 
-const baixarPDF = () => {
+const baixarPDF = async () => {
+  if (abaMobile.value === 'editar' && window.innerWidth < 768) {
+    abaMobile.value = 'visualizar';
+    await nextTick();
+    await new Promise(r => setTimeout(r, 400));
+  }
+
   const previewContainer = document.getElementById('cv-preview-container');
   const elemento = previewContainer?.querySelector('.cv-page');
   if (!(elemento instanceof HTMLElement) || loading.pdf) return;
@@ -519,9 +589,7 @@ const baixarPDF = () => {
           if (img.src && !img.src.startsWith('data:')) {
             try {
               img.src = await urlParaBase64(img.src);
-            } catch (_) {
-              // mantém o src original se o fetch falhar
-            }
+            } catch (_) {}
           }
         })
       );
@@ -583,7 +651,6 @@ const baixarPDF = () => {
           fim = secaoCortada.top;
         }
 
-        // fallback para evitar loop em casos extremos (seção maior do que uma página)
         if (fim <= cursor + 1) {
           fim = idealFim;
         }
@@ -678,7 +745,15 @@ watch(
   { deep: true }
 );
 
-onMounted(carregarDadosIniciais);
+onMounted(() => {
+  carregarDadosIniciais();
+  adjustScale();
+  window.addEventListener('resize', adjustScale);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', adjustScale);
+});
 </script>
 
 <template>
@@ -772,6 +847,51 @@ onMounted(carregarDadosIniciais);
                   class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
               </label>
+            </div>
+
+            <div v-if="cv.estilizacao.exibirFoto" class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black uppercase text-slate-400">Tamanho da Foto</span>
+                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                  <button v-for="t in [{v: 'pequeno', l: 'P'}, {v: 'medio', l: 'M'}, {v: 'grande', l: 'G'}]" :key="t.v" @click="cv.estilizacao.tamanhoFoto = t.v" class="px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.tamanhoFoto === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                    {{ t.l }}
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black uppercase text-slate-400">Formato</span>
+                <div class="flex bg-slate-50 rounded-lg p-1 gap-2">
+                  <button @click="cv.estilizacao.formatoFoto = 'quadrado'" class="w-6 h-6 border-2 transition-all" :class="cv.estilizacao.formatoFoto === 'quadrado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                  <button @click="cv.estilizacao.formatoFoto = 'arredondado'" class="w-6 h-6 border-2 rounded-md transition-all" :class="cv.estilizacao.formatoFoto === 'arredondado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                  <button @click="cv.estilizacao.formatoFoto = 'circulo'" class="w-6 h-6 border-2 rounded-full transition-all" :class="cv.estilizacao.formatoFoto === 'circulo' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
+              <span class="text-[10px] font-black uppercase text-slate-400">Caixa Alta (Maiúsculas)</span>
+              <div class="grid grid-cols-2 gap-2">
+                <label
+                  v-for="opt in [
+                    { l: 'NOME', v: 'nome' },
+                    { l: 'CARGO', v: 'cargo' },
+                    { l: 'CONTATOS', v: 'contatos' },
+                    { l: 'TÍT. (SEÇÕES)', v: 'titulosSecao' },
+                    { l: 'TÍT. (ITENS)', v: 'titulosItem' },
+                    { l: 'SUBTÍTULOS', v: 'subtitulosItem' },
+                    { l: 'DESCRIÇÕES', v: 'textosGerais' }
+                  ]"
+                  :key="opt.v"
+                  class="flex items-center gap-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    v-model="cv.estilizacao.caixaAlta[opt.v]"
+                    class="w-3 h-3 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span class="text-[9px] font-bold text-slate-500">{{ opt.l }}</span>
+                </label>
+              </div>
             </div>
 
             <div class="rounded-2xl border border-slate-200 bg-white p-2">
@@ -982,10 +1102,24 @@ onMounted(carregarDadosIniciais);
             <div
               v-for="(secao, i) in cv.secoes"
               :key="secao.id"
-              class="p-5 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 group/sec relative"
+              draggable="true"
+              @dragstart.stop="onDragStart($event, i, 'secao')"
+              @dragenter.prevent.stop
+              @dragover.prevent.stop
+              @drop.stop="onDrop($event, i, 'secao')"
+              class="p-5 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 group/sec relative transition-all"
             >
               <div class="flex items-center gap-3">
-                <GripVertical size="16" class="text-slate-300 cursor-grab active:cursor-grabbing" />
+                <GripVertical size="16" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block" />
+
+                <div class="flex flex-col md:hidden -space-y-1">
+                  <button @click="moverItem(cv.secoes, i, -1)" :disabled="i === 0" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-1">
+                    <ChevronUp size="16" />
+                  </button>
+                  <button @click="moverItem(cv.secoes, i, 1)" :disabled="i === cv.secoes.length - 1" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-1">
+                    <ChevronDown size="16" />
+                  </button>
+                </div>
 
                 <input
                   v-model="secao.titulo"
@@ -1020,12 +1154,30 @@ onMounted(carregarDadosIniciais);
                 <div
                   v-for="(item, j) in secao.itens"
                   :key="item.id"
+                  draggable="true"
+                  @dragstart.stop="onDragStart($event, j, 'item', i)"
+                  @dragenter.prevent.stop
+                  @dragover.prevent.stop
+                  @drop.stop="onDrop($event, j, 'item', i)"
                   class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2"
                 >
-                  <div class="flex justify-between">
-                    <span class="text-[8px] font-black text-slate-300 uppercase">
-                      Item #{{ j + 1 }}
-                    </span>
+                  <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-2">
+                      <GripVertical size="12" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block" />
+
+                      <div class="flex md:hidden gap-1">
+                        <button @click="moverItem(secao.itens, j, -1)" :disabled="j === 0" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-0.5">
+                          <ChevronUp size="14" />
+                        </button>
+                        <button @click="moverItem(secao.itens, j, 1)" :disabled="j === secao.itens.length - 1" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-0.5">
+                          <ChevronDown size="14" />
+                        </button>
+                      </div>
+
+                      <span class="text-[8px] font-black text-slate-300 uppercase">
+                        Item #{{ j + 1 }}
+                      </span>
+                    </div>
 
                     <button @click="secao.itens.splice(j, 1)" class="text-slate-300 hover:text-red-400">
                       <X size="12" />
@@ -1086,12 +1238,13 @@ onMounted(carregarDadosIniciais);
 
     <main
       :class="previewPaneClass"
-      class="flex-1 md:h-screen md:overflow-y-auto bg-slate-200 p-4 md:p-12 justify-center items-start print:p-0 print:bg-white"
+      class="flex-1 md:h-screen md:overflow-y-auto bg-slate-200 p-4 md:p-12 justify-center items-start print:p-0 print:bg-white relative"
     >
-      <div class="w-full flex justify-center">
+      <div class="w-full flex justify-center overflow-x-hidden pt-2 pb-28 md:pb-12">
         <div
           id="cv-preview-container"
-          class="preview-card shadow-2xl bg-white print:shadow-none mx-auto transform transition-transform duration-500 hover:scale-[1.01]"
+          class="preview-card shadow-2xl bg-white print:shadow-none mx-auto transition-transform duration-500 md:hover:scale-[1.01]"
+          :style="mobileScaleStyle"
         >
           <BaseTemplate
             v-if="idAtivo"
@@ -1099,6 +1252,26 @@ onMounted(carregarDadosIniciais);
             :mostrar-marca-dagua="permissoes.marcaDagua"
           />
         </div>
+      </div>
+
+      <div class="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 flex gap-3 z-40 no-print">
+        <button
+          @click="imprimirCV"
+          class="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all active:scale-95"
+        >
+          <Printer size="16" />
+          Imprimir
+        </button>
+
+        <button
+          @click="baixarPDF"
+          :disabled="loading.pdf"
+          class="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
+        >
+          <Loader2 v-if="loading.pdf" size="16" class="animate-spin" />
+          <FileText v-else size="16" />
+          {{ loading.pdf ? 'Gerando...' : 'Baixar PDF' }}
+        </button>
       </div>
     </main>
 
@@ -1252,13 +1425,6 @@ onMounted(carregarDadosIniciais);
 .pdf-exporting * {
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-}
-
-@media (max-width: 768px) {
-  .preview-card {
-    width: 210mm;
-    zoom: 0.45;
-  }
 }
 
 @media print {

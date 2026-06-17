@@ -27,6 +27,37 @@ const exibirSubtitulo = computed(() => {
   return Boolean(props.cv?.estilizacao?.exibirSubtitulo && dados.value?.subtitulo);
 });
 
+const caixaAlta = computed(() => {
+  return props.cv?.estilizacao?.caixaAlta || {
+    nome: true,
+    cargo: true,
+    contatos: true,
+    titulosSecao: true,
+    titulosItem: true,
+    subtitulosItem: true,
+    textosGerais: false
+  };
+});
+
+const estiloFoto = computed(() => {
+  const tamanho = props.cv?.estilizacao?.tamanhoFoto || 'medio';
+  const formato = props.cv?.estilizacao?.formatoFoto || 'circulo';
+  
+  let size = '30mm';
+  if (tamanho === 'pequeno') size = '22mm';
+  if (tamanho === 'grande') size = '38mm';
+  
+  let radius = '50%';
+  if (formato === 'quadrado') radius = '0px';
+  if (formato === 'arredondado') radius = '6mm';
+  
+  return {
+    width: size,
+    height: size,
+    borderRadius: radius
+  };
+});
+
 const infoContatoHeader = computed(() => {
   const itens = [];
 
@@ -63,17 +94,17 @@ const infoContatoHeader = computed(() => {
           <td>
             <header class="cv-header text-white" :style="{ backgroundColor: corPrincipal }">
               <div class="cv-header__layout">
-                <div v-if="temFoto" class="cv-header__photo">
+                <div v-if="temFoto" class="cv-header__photo" :style="estiloFoto">
                   <img :src="dados.foto" alt="Foto do currículo" class="w-full h-full object-cover">
                 </div>
 
                 <div class="cv-header__content">
                   <div class="cv-header__identity">
-                    <h1 class="cv-header__name">
+                    <h1 class="cv-header__name" :style="{ textTransform: caixaAlta.nome ? 'uppercase' : 'none' }">
                       {{ dados.nome || 'Nome Completo' }}
                     </h1>
 
-                    <p v-if="exibirSubtitulo" class="cv-header__role">
+                    <p v-if="exibirSubtitulo" class="cv-header__role" :style="{ textTransform: caixaAlta.cargo ? 'uppercase' : 'none' }">
                       {{ dados.subtitulo }}
                     </p>
                   </div>
@@ -83,6 +114,7 @@ const infoContatoHeader = computed(() => {
                       v-for="item in infoContatoHeader"
                       :key="item.key"
                       class="cv-header__meta-item"
+                      :style="{ textTransform: caixaAlta.contatos ? 'uppercase' : 'none' }"
                     >
                       <span class="cv-header__meta-icon" aria-hidden="true">
                         <svg v-if="item.key === 'email'" viewBox="0 0 24 24" class="cv-header__meta-icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -114,11 +146,11 @@ const infoContatoHeader = computed(() => {
 
             <main class="cv-content">
               <section v-if="dados?.sobre" class="cv-section">
-                <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal }">
+                <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal, textTransform: caixaAlta.titulosSecao ? 'uppercase' : 'none' }">
                   Sobre Mim
                 </h2>
 
-                <p class="cv-section__text text-justify whitespace-pre-line">
+                <p class="cv-section__text text-justify whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
                   {{ dados.sobre }}
                 </p>
               </section>
@@ -128,11 +160,11 @@ const infoContatoHeader = computed(() => {
                 :key="secao.id"
                 class="cv-section"
               >
-                <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal }">
+                <h2 class="cv-section__title" :style="{ color: corPrincipal, borderColor: corPrincipal, textTransform: caixaAlta.titulosSecao ? 'uppercase' : 'none' }">
                   {{ secao.titulo }}
                 </h2>
 
-                <div v-if="secao.tipo === 'texto'" class="cv-section__text whitespace-pre-line">
+                <div v-if="secao.tipo === 'texto'" class="cv-section__text whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
                   {{ secao.conteudo }}
                 </div>
 
@@ -143,16 +175,16 @@ const infoContatoHeader = computed(() => {
                     class="cv-item"
                   >
                     <div class="cv-item__header">
-                      <h3 class="cv-item__title">
+                      <h3 class="cv-item__title" :style="{ textTransform: caixaAlta.titulosItem ? 'uppercase' : 'none' }">
                         {{ item.titulo }}
                       </h3>
 
-                      <span v-if="item.subtitulo" class="cv-item__subtitle">
+                      <span v-if="item.subtitulo" class="cv-item__subtitle" :style="{ textTransform: caixaAlta.subtitulosItem ? 'uppercase' : 'none' }">
                         {{ item.subtitulo }}
                       </span>
                     </div>
 
-                    <p v-if="item.descricao" class="cv-item__description whitespace-pre-line">
+                    <p v-if="item.descricao" class="cv-item__description whitespace-pre-line" :style="{ textTransform: caixaAlta.textosGerais ? 'uppercase' : 'none' }">
                       {{ item.descricao }}
                     </p>
                   </article>
@@ -198,9 +230,6 @@ const infoContatoHeader = computed(() => {
 }
 
 .cv-header__photo {
-  width: 30mm;
-  height: 30mm;
-  border-radius: 9999px;
   overflow: hidden;
   flex-shrink: 0;
   border: 1.2mm solid rgb(255 255 255 / 0.22);
@@ -221,7 +250,6 @@ const infoContatoHeader = computed(() => {
   font-weight: 900;
   line-height: 1;
   letter-spacing: -0.04em;
-  text-transform: uppercase;
   word-break: break-word;
 }
 
@@ -229,7 +257,6 @@ const infoContatoHeader = computed(() => {
   margin-top: 4px;
   font-size: 10px;
   font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: 0.22em;
   opacity: 0.9;
   word-break: break-word;
@@ -253,7 +280,6 @@ const infoContatoHeader = computed(() => {
   font-size: 10px;
   font-weight: 700;
   line-height: 1.35;
-  text-transform: uppercase;
   word-break: break-word;
 }
 
@@ -305,7 +331,6 @@ const infoContatoHeader = computed(() => {
   font-size: 13px;
   font-weight: 900;
   font-style: italic;
-  text-transform: uppercase;
   line-height: 1.2;
 }
 
@@ -338,7 +363,6 @@ const infoContatoHeader = computed(() => {
   margin: 0;
   font-size: 12px;
   font-weight: 900;
-  text-transform: uppercase;
   line-height: 1.3;
   color: rgb(15 23 42);
 }
@@ -346,7 +370,6 @@ const infoContatoHeader = computed(() => {
 .cv-item__subtitle {
   font-size: 9px;
   font-weight: 700;
-  text-transform: uppercase;
   color: rgb(148 163 184);
   text-align: right;
   line-height: 1.3;
