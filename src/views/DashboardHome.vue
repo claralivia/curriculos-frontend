@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus, LogOut } from 'lucide-vue-next';
+import { Plus, LogOut, Megaphone, Info, AlertCircle } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import api from '../lib/api';
 import PlanSummaryCard from '../components/PlanSummaryCard.vue';
@@ -34,11 +34,17 @@ const usuario = ref({
 });
 
 const curriculos = ref([]);
+const avisos = ref([]);
 const loading = ref(false);
 const carregandoUsuario = ref(false);
 
 const modalUpgradeAberto = ref(false);
 const tipoSolicitacaoUpgrade = ref('pro');
+
+const carouselRef = ref(null);
+const isDragging = ref(false);
+const startX = ref(0);
+const scrollLeft = ref(0);
 
 const nomeExibicao = computed(() => {
   return usuario.value?.nome?.trim() || 'Usuário';
@@ -129,11 +135,19 @@ const carregarCurriculos = async () => {
   }
 };
 
+const carregarAvisos = async () => {
+  try {
+    const { data } = await api.get('/announcements');
+    avisos.value = data || [];
+  } catch (error) {
+    console.error('Erro ao carregar avisos:', error);
+  }
+};
+
 const carregarDados = async () => {
   loading.value = true;
-
   try {
-    await Promise.all([carregarUsuario(), carregarCurriculos()]);
+    await Promise.all([carregarUsuario(), carregarCurriculos(), carregarAvisos()]);
   } finally {
     loading.value = false;
   }
@@ -229,6 +243,25 @@ const handleLogout = () => {
   window.location.href = '/login';
 };
 
+const startDrag = (e) => {
+  if (!carouselRef.value) return;
+  isDragging.value = true;
+  startX.value = e.pageX - carouselRef.value.offsetLeft;
+  scrollLeft.value = carouselRef.value.scrollLeft;
+};
+
+const stopDrag = () => {
+  isDragging.value = false;
+};
+
+const doDrag = (e) => {
+  if (!isDragging.value || !carouselRef.value) return;
+  e.preventDefault();
+  const x = e.pageX - carouselRef.value.offsetLeft;
+  const walk = (x - startX.value) * 1.5;
+  carouselRef.value.scrollLeft = scrollLeft.value - walk;
+};
+
 onMounted(carregarDados);
 </script>
 
@@ -273,6 +306,28 @@ onMounted(carregarDados);
           </button>
         </div>
       </header>
+
+      <div
+        v-if="avisos.length"
+        ref="carouselRef"
+        @mousedown="startDrag"
+        @mouseleave="stopDrag"
+        @mouseup="stopDrag"
+        @mousemove="doDrag"
+        class="hide-scrollbar flex overflow-x-auto gap-4 pb-2 snap-x transition-all"
+        :class="isDragging ? 'cursor-grabbing select-none snap-none' : 'cursor-grab'"
+      >
+        <div v-for="aviso in avisos" :key="aviso._id" class="min-w-[280px] max-w-[320px] bg-white rounded-3xl p-5 border shadow-sm snap-center shrink-0" :class="{'border-blue-200': aviso.tipo === 'novidade', 'border-slate-200': aviso.tipo === 'info', 'border-amber-200': aviso.tipo === 'alerta'}">
+          <div class="flex items-center gap-2 mb-2" :class="{'text-blue-500': aviso.tipo === 'novidade', 'text-slate-500': aviso.tipo === 'info', 'text-amber-500': aviso.tipo === 'alerta'}">
+            <Megaphone v-if="aviso.tipo === 'novidade'" size="16" />
+            <Info v-else-if="aviso.tipo === 'info'" size="16" />
+            <AlertCircle v-else size="16" />
+            <span class="text-[10px] font-black uppercase tracking-widest">{{ aviso.tipo }}</span>
+          </div>
+          <h4 class="font-bold text-sm text-slate-800 mb-1 pointer-events-none">{{ aviso.titulo }}</h4>
+          <p class="text-xs text-slate-600 line-clamp-3 pointer-events-none">{{ aviso.mensagem }}</p>
+        </div>
+      </div>
 
       <PlanSummaryCard
         :plano-atual="planoAtual"
@@ -365,3 +420,13 @@ onMounted(carregarDados);
     />
   </div>
 </template>
+
+<style scoped>
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+</style>

@@ -67,6 +67,7 @@ const loading = reactive({
 });
 
 const statusSalvamento = ref('');
+const secaoAberta = ref('pessoais');
 
 const modals = reactive({
   section: false,
@@ -166,6 +167,11 @@ const moverItem = (list, index, direction) => {
   const temp = list[index];
   list[index] = list[novoIndex];
   list[novoIndex] = temp;
+};
+
+const autoResize = (event) => {
+  event.target.style.height = 'auto';
+  event.target.style.height = `${event.target.scrollHeight}px`;
 };
 
 const coresRapidas = ['#4f9d76', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#ea580c', '#334155', '#111827'];
@@ -408,11 +414,9 @@ const adicionarSecao = () => {
   const titulo = novaSecaoTitulo.value.trim();
   if (!titulo) return;
 
-  cv.secoes.push(
-    normalizarSecao({
-      titulo
-    })
-  );
+  const novaSecao = normalizarSecao({ titulo });
+  cv.secoes.push(novaSecao);
+  secaoAberta.value = novaSecao.id;
 
   novaSecaoTitulo.value = '';
   modals.section = false;
@@ -648,13 +652,15 @@ const baixarPDF = async () => {
 
       const cortes = [];
       let cursor = 0;
+      
+      const TOLERANCE_PX = 15;
 
       while (cursor < maxCanvasY) {
         const isFirstSlice = cortes.length === 0;
         const pageContentPx = isFirstSlice ? firstPageContentPx : nextPagesContentPx;
         const idealFim = cursor + pageContentPx;
 
-        if (idealFim >= maxCanvasY) {
+        if (idealFim >= maxCanvasY - TOLERANCE_PX) {
           cortes.push([cursor, maxCanvasY]);
           break;
         }
@@ -843,249 +849,263 @@ onUnmounted(() => {
           <span class="text-xs font-medium">Sincronizando currículo...</span>
         </div>
 
-        <div v-else class="space-y-10 pb-24">
+        <div v-else class="space-y-4 pb-24">
           <section class="group relative bg-slate-50 rounded-4xl p-5 border border-slate-100 transition-all hover:border-emerald-200">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between cursor-pointer" @click="secaoAberta = secaoAberta === 'estilo' ? '' : 'estilo'">
               <div class="flex items-center gap-2 font-black text-[10px] uppercase tracking-widest text-slate-400">
                 <Palette size="14" />
                 Estilo & Design
               </div>
 
-              <button
-                v-if="permissoes.podeExcluir"
-                @click="modals.deleteCv = true"
-                class="text-red-400 hover:text-red-600 p-1"
-              >
-                <Trash2 size="16" />
-              </button>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 mb-4">
-              <label
-                v-for="opt in [{ l: 'FOTO', v: 'exibirFoto' }, { l: 'CARGO', v: 'exibirSubtitulo' }]"
-                :key="opt.v"
-                class="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-transparent hover:border-emerald-100 cursor-pointer transition-all"
-              >
-                <span class="text-[10px] font-bold text-slate-500">{{ opt.l }}</span>
-                <input
-                  type="checkbox"
-                  v-model="cv.estilizacao[opt.v]"
-                  class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-              </label>
-            </div>
-
-            <div v-if="cv.estilizacao.exibirFoto" class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] font-black uppercase text-slate-400">Tamanho da Foto</span>
-                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
-                  <button v-for="t in [{v: 'pequeno', l: 'P'}, {v: 'medio', l: 'M'}, {v: 'grande', l: 'G'}]" :key="t.v" @click="cv.estilizacao.tamanhoFoto = t.v" class="px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.tamanhoFoto === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
-                    {{ t.l }}
-                  </button>
-                </div>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] font-black uppercase text-slate-400">Formato</span>
-                <div class="flex bg-slate-50 rounded-lg p-1 gap-2">
-                  <button @click="cv.estilizacao.formatoFoto = 'quadrado'" class="w-6 h-6 border-2 transition-all" :class="cv.estilizacao.formatoFoto === 'quadrado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
-                  <button @click="cv.estilizacao.formatoFoto = 'arredondado'" class="w-6 h-6 border-2 rounded-md transition-all" :class="cv.estilizacao.formatoFoto === 'arredondado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
-                  <button @click="cv.estilizacao.formatoFoto = 'circulo'" class="w-6 h-6 border-2 rounded-full transition-all" :class="cv.estilizacao.formatoFoto === 'circulo' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
-              <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
-                <span class="text-[10px] font-black uppercase text-slate-400">Espaçamento</span>
-                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
-                  <button v-for="t in [{v: 'compacto', l: 'P'}, {v: 'padrao', l: 'M'}, {v: 'espacoso', l: 'G'}]" :key="t.v" @click="cv.estilizacao.espacamento = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.espacamento === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
-                    {{ t.l }}
-                  </button>
-                </div>
-              </div>
-              <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
-                <span class="text-[10px] font-black uppercase text-slate-400">Cabeçalho</span>
-                <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
-                  <button v-for="t in [{v: 'modelo1', l: 'Padrão'}, {v: 'modelo2', l: 'Invert.'}, {v: 'modelo3', l: 'Clean'}]" :key="t.v" @click="cv.estilizacao.modeloCabecalho = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.modeloCabecalho === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
-                    {{ t.l }}
-                  </button>
-                </div>
-              </div>
-              
-              <span class="text-[10px] font-black uppercase text-slate-400 block pt-1">Caixa Alta (Maiúsculas)</span>
-              <div class="grid grid-cols-2 gap-2">
-                <label
-                  v-for="opt in [
-                    { l: 'NOME', v: 'nome' },
-                    { l: 'CARGO', v: 'cargo' },
-                    { l: 'CONTATOS', v: 'contatos' },
-                    { l: 'TÍT. (SEÇÕES)', v: 'titulosSecao' },
-                    { l: 'TÍT. (ITENS)', v: 'titulosItem' },
-                    { l: 'SUBTÍTULOS', v: 'subtitulosItem' },
-                    { l: 'DESCRIÇÕES', v: 'textosGerais' }
-                  ]"
-                  :key="opt.v"
-                  class="flex items-center gap-2 cursor-pointer"
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="permissoes.podeExcluir"
+                  @click.stop="modals.deleteCv = true"
+                  class="text-red-400 hover:text-red-600 p-2 bg-red-50 hover:bg-red-100 rounded-xl transition-colors shrink-0"
                 >
+                  <Trash2 size="16" />
+                </button>
+                <ChevronDown :class="{'rotate-180': secaoAberta === 'estilo'}" class="text-slate-400 transition-transform duration-200 shrink-0" size="16" />
+              </div>
+            </div>
+
+            <div v-show="secaoAberta === 'estilo'" class="mt-5 space-y-4">
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <label
+                  v-for="opt in [{ l: 'FOTO', v: 'exibirFoto' }, { l: 'CARGO', v: 'exibirSubtitulo' }]"
+                  :key="opt.v"
+                  class="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-transparent hover:border-emerald-100 cursor-pointer transition-all"
+                >
+                  <span class="text-[10px] font-bold text-slate-500">{{ opt.l }}</span>
                   <input
                     type="checkbox"
-                    v-model="cv.estilizacao.caixaAlta[opt.v]"
-                    class="w-3 h-3 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    v-model="cv.estilizacao[opt.v]"
+                    class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span class="text-[9px] font-bold text-slate-500">{{ opt.l }}</span>
                 </label>
               </div>
-            </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-2">
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Selecionar fonte do currículo">
-                <button
-                  v-for="fonte in fontesDisponiveis"
-                  :key="fonte.value"
-                  type="button"
-                  role="radio"
-                  :aria-checked="cv.estilizacao.fontFamily === fonte.value"
-                  @click="cv.estilizacao.fontFamily = fonte.value"
-                  class="text-left rounded-xl border px-3 py-2.5 transition-all"
-                  :class="cv.estilizacao.fontFamily === fonte.value
-                    ? 'bg-emerald-50 border-emerald-300 shadow-sm'
-                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'"
-                  :style="{ fontFamily: fonte.previewFamily }"
-                >
-                  <span class="block text-xs font-black uppercase tracking-wide text-slate-700">
-                    {{ fonte.titulo }}
-                  </span>
-                  <span class="block text-[11px] text-slate-500">
-                    {{ fonte.subtitulo }}
-                  </span>
-                </button>
+              <div v-if="cv.estilizacao.exibirFoto" class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-black uppercase text-slate-400">Tamanho da Foto</span>
+                  <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                    <button v-for="t in [{v: 'pequeno', l: 'P'}, {v: 'medio', l: 'M'}, {v: 'grande', l: 'G'}]" :key="t.v" @click="cv.estilizacao.tamanhoFoto = t.v" class="px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.tamanhoFoto === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                      {{ t.l }}
+                    </button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-black uppercase text-slate-400">Formato</span>
+                  <div class="flex bg-slate-50 rounded-lg p-1 gap-2">
+                    <button @click="cv.estilizacao.formatoFoto = 'quadrado'" class="w-6 h-6 border-2 transition-all" :class="cv.estilizacao.formatoFoto === 'quadrado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                    <button @click="cv.estilizacao.formatoFoto = 'arredondado'" class="w-6 h-6 border-2 rounded-md transition-all" :class="cv.estilizacao.formatoFoto === 'arredondado' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                    <button @click="cv.estilizacao.formatoFoto = 'circulo'" class="w-6 h-6 border-2 rounded-full transition-all" :class="cv.estilizacao.formatoFoto === 'circulo' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-slate-400'"></button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
-              <div class="flex items-center gap-3">
-                <label class="relative h-10 w-12 shrink-0 rounded-xl border border-slate-200 overflow-hidden cursor-pointer">
+              <div class="bg-white rounded-2xl border border-slate-100 p-3 mb-4 shadow-sm space-y-3">
+                <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
+                  <span class="text-[10px] font-black uppercase text-slate-400">Espaçamento</span>
+                  <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                    <button v-for="t in [{v: 'compacto', l: 'P'}, {v: 'padrao', l: 'M'}, {v: 'espacoso', l: 'G'}]" :key="t.v" @click="cv.estilizacao.espacamento = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.espacamento === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                      {{ t.l }}
+                    </button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between mb-2 border-b border-slate-50 pb-2">
+                  <span class="text-[10px] font-black uppercase text-slate-400">Cabeçalho</span>
+                  <div class="flex bg-slate-50 rounded-lg p-1 gap-1">
+                    <button v-for="t in [{v: 'modelo1', l: 'Padrão'}, {v: 'modelo2', l: 'Invert.'}, {v: 'modelo3', l: 'Clean'}]" :key="t.v" @click="cv.estilizacao.modeloCabecalho = t.v" class="px-2 py-1 text-[9px] font-bold uppercase rounded-md transition-all" :class="cv.estilizacao.modeloCabecalho === t.v ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-slate-100'">
+                      {{ t.l }}
+                    </button>
+                  </div>
+                </div>
+                
+                <span class="text-[10px] font-black uppercase text-slate-400 block pt-1">Caixa Alta (Maiúsculas)</span>
+                <div class="grid grid-cols-2 gap-2">
+                  <label
+                    v-for="opt in [
+                      { l: 'NOME', v: 'nome' },
+                      { l: 'CARGO', v: 'cargo' },
+                      { l: 'CONTATOS', v: 'contatos' },
+                      { l: 'TÍT. (SEÇÕES)', v: 'titulosSecao' },
+                      { l: 'TÍT. (ITENS)', v: 'titulosItem' },
+                      { l: 'SUBTÍTULOS', v: 'subtitulosItem' },
+                      { l: 'DESCRIÇÕES', v: 'textosGerais' }
+                    ]"
+                    :key="opt.v"
+                    class="flex items-center gap-2 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      v-model="cv.estilizacao.caixaAlta[opt.v]"
+                      class="w-3 h-3 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span class="text-[9px] font-bold text-slate-500">{{ opt.l }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-white p-2">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Selecionar fonte do currículo">
+                  <button
+                    v-for="fonte in fontesDisponiveis"
+                    :key="fonte.value"
+                    type="button"
+                    role="radio"
+                    :aria-checked="cv.estilizacao.fontFamily === fonte.value"
+                    @click="cv.estilizacao.fontFamily = fonte.value"
+                    class="text-left rounded-xl border px-3 py-2.5 transition-all"
+                    :class="cv.estilizacao.fontFamily === fonte.value
+                      ? 'bg-emerald-50 border-emerald-300 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 hover:border-slate-300'"
+                    :style="{ fontFamily: fonte.previewFamily }"
+                  >
+                    <span class="block text-xs font-black uppercase tracking-wide text-slate-700">
+                      {{ fonte.titulo }}
+                    </span>
+                    <span class="block text-[11px] text-slate-500">
+                      {{ fonte.subtitulo }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                <div class="flex items-center gap-3">
+                  <label class="relative h-10 w-12 shrink-0 rounded-xl border border-slate-200 overflow-hidden cursor-pointer">
+                    <input
+                      type="color"
+                      v-model="cv.estilizacao.corPrincipal"
+                      class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                    <span class="block h-full w-full" :style="{ backgroundColor: cv.estilizacao.corPrincipal }" />
+                  </label>
+
                   <input
-                    type="color"
-                    v-model="cv.estilizacao.corPrincipal"
-                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    :value="corPrincipalHex"
+                    @input="aplicarCorPrincipal($event.target.value)"
+                    maxlength="7"
+                    spellcheck="false"
+                    class="flex-1 px-3 py-2 bg-slate-50 rounded-xl text-xs font-black tracking-wider uppercase border border-slate-200 outline-none focus:bg-white focus:border-emerald-500"
+                    placeholder="#4F9D76"
                   />
-                  <span class="block h-full w-full" :style="{ backgroundColor: cv.estilizacao.corPrincipal }" />
-                </label>
+                </div>
 
-                <input
-                  :value="corPrincipalHex"
-                  @input="aplicarCorPrincipal($event.target.value)"
-                  maxlength="7"
-                  spellcheck="false"
-                  class="flex-1 px-3 py-2 bg-slate-50 rounded-xl text-xs font-black tracking-wider uppercase border border-slate-200 outline-none focus:bg-white focus:border-emerald-500"
-                  placeholder="#4F9D76"
-                />
+                <div class="grid grid-cols-8 gap-2">
+                  <button
+                    v-for="cor in coresRapidas"
+                    :key="cor"
+                    type="button"
+                    @click="cv.estilizacao.corPrincipal = cor"
+                    class="h-6 w-full rounded-lg border transition-all"
+                    :class="cv.estilizacao.corPrincipal.toLowerCase() === cor.toLowerCase() ? 'border-slate-900 scale-105' : 'border-slate-200 hover:border-slate-400'"
+                    :style="{ backgroundColor: cor }"
+                    :title="`Usar ${cor}`"
+                    :aria-label="`Usar cor ${cor}`"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="bg-slate-50 rounded-4xl p-5 border border-slate-100 transition-all">
+            <div class="flex items-center justify-between cursor-pointer" @click="secaoAberta = secaoAberta === 'pessoais' ? '' : 'pessoais'">
+              <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <User size="14" />
+                Informações Pessoais
+              </h3>
+              <ChevronDown :class="{'rotate-180': secaoAberta === 'pessoais'}" class="text-slate-400 transition-transform duration-200 shrink-0" size="16" />
+            </div>
+
+            <div v-show="secaoAberta === 'pessoais'" class="mt-5 space-y-4">
+              <div class="flex gap-4 items-center mb-6">
+                <div class="relative w-24 h-24 rounded-3xl bg-slate-100 border-4 border-white shadow-md overflow-hidden group">
+                  <img v-if="cv.dados.foto" :src="cv.dados.foto" class="w-full h-full object-cover" />
+                  <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                    <User size="32" />
+                  </div>
+                  <div v-if="loading.upload" class="absolute inset-0 bg-white/80 flex items-center justify-center">
+                    <Loader2 class="animate-spin text-emerald-500" />
+                  </div>
+                </div>
+
+                <div class="flex-1 space-y-2">
+                  <label class="flex items-center justify-center gap-2 w-full py-3 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-2xl cursor-pointer text-[10px] font-black uppercase transition-all">
+                    <Upload size="14" />
+                    {{ cv.dados.foto ? 'Alterar' : 'Subir Foto' }}
+                    <input type="file" class="hidden" @change="handlePhoto" accept="image/*" />
+                  </label>
+
+                  <button
+                    v-if="cv.dados.foto"
+                    @click="modals.removePhoto = true"
+                    class="flex items-center justify-center gap-2 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl text-[10px] font-black uppercase transition-all"
+                  >
+                    <ImageMinus size="14" />
+                    Remover
+                  </button>
+                </div>
               </div>
 
-              <div class="grid grid-cols-8 gap-2">
-                <button
-                  v-for="cor in coresRapidas"
-                  :key="cor"
-                  type="button"
-                  @click="cv.estilizacao.corPrincipal = cor"
-                  class="h-6 w-full rounded-lg border transition-all"
-                  :class="cv.estilizacao.corPrincipal.toLowerCase() === cor.toLowerCase() ? 'border-slate-900 scale-105' : 'border-slate-200 hover:border-slate-400'"
-                  :style="{ backgroundColor: cor }"
-                  :title="`Usar ${cor}`"
-                  :aria-label="`Usar cor ${cor}`"
+              <div class="space-y-3">
+                <div class="relative">
+                  <input
+                    v-model="cv.dados.nome"
+                    :disabled="!permissoes.podeEditarNome"
+                    placeholder="Nome Completo"
+                    class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm font-semibold transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+
+                  <div
+                    v-if="!permissoes.podeEditarNome"
+                    class="absolute right-4 top-4 text-[8px] font-black bg-slate-200 px-2 py-1 rounded text-slate-500 uppercase"
+                  >
+                    Vitalício Only
+                  </div>
+                </div>
+
+                <input
+                  v-model="cv.dados.subtitulo"
+                  placeholder="Cargo ou Título Profissional"
+                  class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
+                />
+
+                <div class="grid grid-cols-2 gap-3">
+                  <input
+                    v-model="cv.dados.nacionalidade"
+                    placeholder="Nacionalidade"
+                    class="p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
+                  />
+
+                  <input
+                    v-model="cv.dados.autorizacaoTrabalho"
+                    placeholder="Visto/Autorização"
+                    class="p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
+                  />
+                </div>
+
+                <textarea
+                  v-model="cv.dados.sobre"
+                  @input="autoResize"
+                  placeholder="Resumo profissional impactante..."
+                  class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none min-h-[112px] resize-none overflow-hidden shadow-inner"
                 />
               </div>
             </div>
           </section>
 
-          <section class="space-y-4">
-            <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-              <User size="14" />
-              Informações Pessoais
-            </h3>
-
-            <div class="flex gap-4 items-center mb-6">
-              <div class="relative w-24 h-24 rounded-3xl bg-slate-100 border-4 border-white shadow-md overflow-hidden group">
-                <img v-if="cv.dados.foto" :src="cv.dados.foto" class="w-full h-full object-cover" />
-                <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
-                  <User size="32" />
-                </div>
-                <div v-if="loading.upload" class="absolute inset-0 bg-white/80 flex items-center justify-center">
-                  <Loader2 class="animate-spin text-emerald-500" />
-                </div>
-              </div>
-
-              <div class="flex-1 space-y-2">
-                <label class="flex items-center justify-center gap-2 w-full py-3 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-2xl cursor-pointer text-[10px] font-black uppercase transition-all">
-                  <Upload size="14" />
-                  {{ cv.dados.foto ? 'Alterar' : 'Subir Foto' }}
-                  <input type="file" class="hidden" @change="handlePhoto" accept="image/*" />
-                </label>
-
-                <button
-                  v-if="cv.dados.foto"
-                  @click="modals.removePhoto = true"
-                  class="flex items-center justify-center gap-2 w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl text-[10px] font-black uppercase transition-all"
-                >
-                  <ImageMinus size="14" />
-                  Remover
-                </button>
-              </div>
+          <section class="bg-slate-50 rounded-4xl p-5 border border-slate-100 transition-all">
+            <div class="flex items-center justify-between cursor-pointer" @click="secaoAberta = secaoAberta === 'contato' ? '' : 'contato'">
+              <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <Mail size="14" />
+                Contato
+              </h3>
+              <ChevronDown :class="{'rotate-180': secaoAberta === 'contato'}" class="text-slate-400 transition-transform duration-200 shrink-0" size="16" />
             </div>
 
-            <div class="space-y-3">
-              <div class="relative">
-                <input
-                  v-model="cv.dados.nome"
-                  :disabled="!permissoes.podeEditarNome"
-                  placeholder="Nome Completo"
-                  class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm font-semibold transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-
-                <div
-                  v-if="!permissoes.podeEditarNome"
-                  class="absolute right-4 top-4 text-[8px] font-black bg-slate-200 px-2 py-1 rounded text-slate-500 uppercase"
-                >
-                  Vitalício Only
-                </div>
-              </div>
-
-              <input
-                v-model="cv.dados.subtitulo"
-                placeholder="Cargo ou Título Profissional"
-                class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
-              />
-
-              <div class="grid grid-cols-2 gap-3">
-                <input
-                  v-model="cv.dados.nacionalidade"
-                  placeholder="Nacionalidade"
-                  class="p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
-                />
-
-                <input
-                  v-model="cv.dados.autorizacaoTrabalho"
-                  placeholder="Visto/Autorização"
-                  class="p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
-                />
-              </div>
-
-              <textarea
-                v-model="cv.dados.sobre"
-                placeholder="Resumo profissional impactante..."
-                class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none h-32 resize-none shadow-inner"
-              />
-            </div>
-          </section>
-
-          <section class="space-y-4">
-            <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-              <Mail size="14" />
-              Contato
-            </h3>
-
-            <div class="space-y-3">
+            <div v-show="secaoAberta === 'contato'" class="mt-5 space-y-3">
               <div class="flex items-center gap-3 bg-slate-50 border border-transparent focus-within:bg-white focus-within:border-emerald-500 rounded-2xl px-4 py-4 transition-all">
                 <Mail size="16" class="text-slate-400 shrink-0" />
                 <input
@@ -1115,20 +1135,25 @@ onUnmounted(() => {
             </div>
           </section>
 
-          <section class="space-y-4">
-            <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-              <FileText size="14" />
-              Documento
-            </h3>
+          <section class="bg-slate-50 rounded-4xl p-5 border border-slate-100 transition-all">
+            <div class="flex items-center justify-between cursor-pointer" @click="secaoAberta = secaoAberta === 'documento' ? '' : 'documento'">
+              <h3 class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <FileText size="14" />
+                Documento
+              </h3>
+              <ChevronDown :class="{'rotate-180': secaoAberta === 'documento'}" class="text-slate-400 transition-transform duration-200 shrink-0" size="16" />
+            </div>
 
-            <input
-              v-model="cv.tituloDocumento"
-              placeholder="Nome do template"
-              class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
-            />
+            <div v-show="secaoAberta === 'documento'" class="mt-5">
+              <input
+                v-model="cv.tituloDocumento"
+                placeholder="Nome do template"
+                class="w-full p-4 bg-slate-50 border border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl text-sm transition-all outline-none"
+              />
+            </div>
           </section>
 
-          <section class="space-y-6">
+          <section class="space-y-6 pt-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-2">
               <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Conteúdo Adicional
@@ -1150,30 +1175,31 @@ onUnmounted(() => {
               @dragenter.prevent.stop
               @dragover.prevent.stop
               @drop.stop="onDrop($event, i, 'secao')"
-              class="p-5 bg-slate-50 rounded-4xl border border-slate-100 space-y-4 group/sec relative transition-all"
+              class="p-5 bg-slate-50 rounded-4xl border border-slate-100 space-y-0 group/sec relative transition-all"
               :class="secao.visivel === false ? 'opacity-50 grayscale bg-slate-100' : ''"
             >
-              <div class="flex items-center gap-3">
-                <GripVertical size="16" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block" />
+              <div class="flex items-center gap-2 cursor-pointer" @click="secaoAberta = secaoAberta === secao.id ? '' : secao.id">
+                <GripVertical size="16" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block shrink-0" />
 
-                <div class="flex flex-col md:hidden -space-y-1">
-                  <button @click="moverItem(cv.secoes, i, -1)" :disabled="i === 0" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-1">
+                <div class="flex md:hidden gap-1 items-center shrink-0" @click.stop>
+                  <button @click.stop="moverItem(cv.secoes, i, -1)" :disabled="i === 0" class="text-slate-500 hover:text-emerald-600 disabled:opacity-30 p-2 bg-slate-200 rounded-lg active:bg-slate-300 transition-colors">
                     <ChevronUp size="16" />
                   </button>
-                  <button @click="moverItem(cv.secoes, i, 1)" :disabled="i === cv.secoes.length - 1" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-1">
+                  <button @click.stop="moverItem(cv.secoes, i, 1)" :disabled="i === cv.secoes.length - 1" class="text-slate-500 hover:text-emerald-600 disabled:opacity-30 p-2 bg-slate-200 rounded-lg active:bg-slate-300 transition-colors">
                     <ChevronDown size="16" />
                   </button>
                 </div>
 
                 <input
                   v-model="secao.titulo"
-                  class="font-black bg-transparent border-none text-[11px] uppercase outline-none text-slate-700 flex-1 focus:text-emerald-600"
+                  @click.stop
+                  class="font-black bg-transparent border-none text-[11px] uppercase outline-none text-slate-700 flex-1 min-w-0 focus:text-emerald-600"
                 />
 
-                <div class="flex gap-1">
+                <div class="flex gap-1 items-center shrink-0">
                   <button
-                    @click="secao.visivel = secao.visivel === false ? true : false"
-                    class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-emerald-500 transition-all"
+                    @click.stop="secao.visivel = secao.visivel === false ? true : false"
+                    class="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-emerald-500 transition-all shrink-0"
                     :title="secao.visivel === false ? 'Mostrar seção' : 'Ocultar seção'"
                   >
                     <EyeOff v-if="secao.visivel === false" size="14" />
@@ -1181,94 +1207,100 @@ onUnmounted(() => {
                   </button>
 
                   <button
-                    @click="alternarTipo(secao)"
-                    class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black uppercase text-slate-500 hover:border-emerald-500 transition-all"
+                    @click.stop="alternarTipo(secao)"
+                    class="px-2 py-2 bg-white border border-slate-200 rounded-xl text-[8px] font-black uppercase text-slate-500 hover:border-emerald-500 transition-all shrink-0"
                   >
                     {{ secao.tipo }}
                   </button>
 
                   <button
-                    @click="cv.secoes.splice(i, 1)"
-                    class="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                    @click.stop="cv.secoes.splice(i, 1)"
+                    class="p-2 bg-red-50 text-red-400 hover:text-red-500 rounded-xl transition-colors shrink-0"
                   >
                     <Trash2 size="14" />
                   </button>
+
+                  <ChevronDown :class="{'rotate-180': secaoAberta === secao.id}" class="text-slate-400 transition-transform ml-1 shrink-0" size="16" />
                 </div>
               </div>
 
-              <textarea
-                v-if="secao.tipo === 'texto'"
-                v-model="secao.conteudo"
-                placeholder="Descreva aqui..."
-                class="w-full bg-white p-4 rounded-2xl text-xs outline-none border border-slate-200 focus:border-emerald-500 shadow-sm h-28 resize-none"
-              />
+              <div v-show="secaoAberta === secao.id" class="mt-5">
+                <textarea
+                  v-if="secao.tipo === 'texto'"
+                  v-model="secao.conteudo"
+                  @input="autoResize"
+                  placeholder="Descreva aqui..."
+                  class="w-full bg-white p-4 rounded-2xl text-xs outline-none border border-slate-200 focus:border-emerald-500 shadow-sm min-h-[112px] resize-none overflow-hidden"
+                />
 
-              <div v-else class="space-y-3">
-                <div
-                  v-for="(item, j) in secao.itens"
-                  :key="item.id"
-                  draggable="true"
-                  @dragstart.stop="onDragStart($event, j, 'item', i)"
-                  @dragenter.prevent.stop
-                  @dragover.prevent.stop
-                  @drop.stop="onDrop($event, j, 'item', i)"
-                  class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2 transition-all"
-                  :class="item.visivel === false ? 'opacity-50 bg-slate-50' : ''"
-                >
-                  <div class="flex justify-between items-center mb-2">
-                    <div class="flex items-center gap-2">
-                      <GripVertical size="12" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block" />
+                <div v-else class="space-y-4">
+                  <div
+                    v-for="(item, j) in secao.itens"
+                    :key="item.id"
+                    draggable="true"
+                    @dragstart.stop="onDragStart($event, j, 'item', i)"
+                    @dragenter.prevent.stop
+                    @dragover.prevent.stop
+                    @drop.stop="onDrop($event, j, 'item', i)"
+                    class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3 transition-all"
+                    :class="item.visivel === false ? 'opacity-50 bg-slate-50' : ''"
+                  >
+                    <div class="flex justify-between items-center mb-1">
+                      <div class="flex items-center gap-2">
+                        <GripVertical size="12" class="text-slate-300 cursor-grab active:cursor-grabbing hidden md:block shrink-0" />
 
-                      <div class="flex md:hidden gap-1">
-                        <button @click="moverItem(secao.itens, j, -1)" :disabled="j === 0" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-0.5">
-                          <ChevronUp size="14" />
-                        </button>
-                        <button @click="moverItem(secao.itens, j, 1)" :disabled="j === secao.itens.length - 1" class="text-slate-400 hover:text-emerald-600 disabled:opacity-30 p-0.5">
-                          <ChevronDown size="14" />
-                        </button>
+                        <div class="flex md:hidden gap-1 items-center shrink-0">
+                          <button @click.stop="moverItem(secao.itens, j, -1)" :disabled="j === 0" class="text-slate-500 hover:text-emerald-600 disabled:opacity-30 p-2 bg-slate-100 rounded-lg active:bg-slate-200 transition-colors">
+                            <ChevronUp size="14" />
+                          </button>
+                          <button @click.stop="moverItem(secao.itens, j, 1)" :disabled="j === secao.itens.length - 1" class="text-slate-500 hover:text-emerald-600 disabled:opacity-30 p-2 bg-slate-100 rounded-lg active:bg-slate-200 transition-colors">
+                            <ChevronDown size="14" />
+                          </button>
+                        </div>
+
+                        <span class="text-[8px] font-black text-slate-300 uppercase shrink-0">
+                          Item #{{ j + 1 }}
+                        </span>
                       </div>
 
-                      <span class="text-[8px] font-black text-slate-300 uppercase">
-                        Item #{{ j + 1 }}
-                      </span>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button @click.stop="item.visivel = item.visivel === false ? true : false" class="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-emerald-500 transition-colors">
+                          <EyeOff v-if="item.visivel === false" size="14" />
+                          <Eye v-else size="14" />
+                        </button>
+                        <button @click.stop="secao.itens.splice(j, 1)" class="p-2 bg-red-50 rounded-lg text-red-400 hover:text-red-500 transition-colors">
+                          <X size="14" />
+                        </button>
+                      </div>
                     </div>
 
-                    <div class="flex items-center">
-                      <button @click="item.visivel = item.visivel === false ? true : false" class="text-slate-300 hover:text-emerald-500 mr-2 p-1">
-                        <EyeOff v-if="item.visivel === false" size="12" />
-                        <Eye v-else size="12" />
-                      </button>
-                      <button @click="secao.itens.splice(j, 1)" class="text-slate-300 hover:text-red-400 p-1">
-                        <X size="12" />
-                      </button>
-                    </div>
+                    <input
+                      v-model="item.titulo"
+                      placeholder="Título (Ex: Empresa X)"
+                      class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
+                    />
+
+                    <input
+                      v-model="item.subtitulo"
+                      placeholder="Subtítulo (Ex: 2022 - 2024)"
+                      class="w-full p-2 bg-slate-50 rounded-lg text-[11px] outline-none"
+                    />
+
+                    <textarea
+                      v-model="item.descricao"
+                      @input="autoResize"
+                      placeholder="Principais conquistas..."
+                      class="w-full p-2 bg-slate-50 rounded-lg text-[11px] outline-none min-h-[80px] resize-none overflow-hidden"
+                    />
                   </div>
 
-                  <input
-                    v-model="item.titulo"
-                    placeholder="Título (Ex: Empresa X)"
-                    class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
-                  />
-
-                  <input
-                    v-model="item.subtitulo"
-                    placeholder="Subtítulo (Ex: 2022 - 2024)"
-                    class="w-full p-2 bg-slate-50 rounded-lg text-[11px] outline-none"
-                  />
-
-                  <textarea
-                    v-model="item.descricao"
-                    placeholder="Principais conquistas..."
-                    class="w-full p-2 bg-slate-50 rounded-lg text-[11px] outline-none h-20 resize-none"
-                  />
+                  <button
+                    @click="adicionarItem(secao)"
+                    class="w-full py-4 border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-500 rounded-2xl text-[10px] font-black uppercase transition-all"
+                  >
+                    + Adicionar Item
+                  </button>
                 </div>
-
-                <button
-                  @click="adicionarItem(secao)"
-                  class="w-full py-3 border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-500 rounded-2xl text-[10px] font-black uppercase transition-all"
-                >
-                  + Adicionar Item
-                </button>
               </div>
             </div>
           </section>
@@ -1326,7 +1358,7 @@ onUnmounted(() => {
         <button
           @click="baixarPDF"
           :disabled="loading.pdf"
-          class="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
+          class="flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
         >
           <Loader2 v-if="loading.pdf" size="16" class="animate-spin" />
           <FileText v-else size="16" />

@@ -16,7 +16,9 @@ import {
   User,
   RefreshCcw,
   Download,
-  History
+  History,
+  Megaphone,
+  Trash2
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import api from '../lib/api';
@@ -29,6 +31,7 @@ const processando = ref(false);
 const logsAtividade = ref([]);
 const loadingLogs = ref(false);
 const baixandoBackup = ref(false);
+const avisos = ref([]);
 
 const modalNovoUsuarioAberto = ref(false);
 const modalPlanoAberto = ref(false);
@@ -41,6 +44,12 @@ const novoUsuario = reactive({
   status: 'ativo',
   plano: 'lite',
   premium: false
+});
+
+const novoAviso = reactive({
+  titulo: '',
+  mensagem: '',
+  tipo: 'novidade'
 });
 
 const usuarioSelecionado = ref(null);
@@ -102,7 +111,6 @@ const getLimitePorPlano = (tipo) => {
 
 const carregarUsuarios = async () => {
   loading.value = true;
-
   try {
     const { data } = await api.get('/admin/users');
     usuarios.value = Array.isArray(data) ? data : [];
@@ -115,7 +123,6 @@ const carregarUsuarios = async () => {
 
 const carregarLogsAtividade = async () => {
   loadingLogs.value = true;
-
   try {
     const { data } = await api.get('/admin/activity-logs?limit=120');
     logsAtividade.value = Array.isArray(data) ? data : [];
@@ -126,8 +133,17 @@ const carregarLogsAtividade = async () => {
   }
 };
 
+const carregarAvisos = async () => {
+  try {
+    const { data } = await api.get('/announcements');
+    avisos.value = data;
+  } catch (error) {
+    console.error('Erro ao buscar avisos', error);
+  }
+};
+
 const atualizarPainel = async () => {
-  await Promise.all([carregarUsuarios(), carregarLogsAtividade()]);
+  await Promise.all([carregarUsuarios(), carregarLogsAtividade(), carregarAvisos()]);
 };
 
 const abrirModalNovoUsuario = () => {
@@ -169,6 +185,32 @@ const criarUsuario = async () => {
     await atualizarPainel();
   } finally {
     processando.value = false;
+  }
+};
+
+const criarAviso = async () => {
+  if (!novoAviso.titulo || !novoAviso.mensagem) return;
+  processando.value = true;
+  try {
+    await api.post('/admin/announcements', { ...novoAviso });
+    novoAviso.titulo = '';
+    novoAviso.mensagem = '';
+    toast.success('Aviso publicado!');
+    await carregarAvisos();
+  } catch {
+    toast.error('Erro ao criar aviso.');
+  } finally {
+    processando.value = false;
+  }
+};
+
+const deletarAviso = async (id) => {
+  try {
+    await api.delete(`/admin/announcements/${id}`);
+    toast.success('Aviso removido!');
+    await carregarAvisos();
+  } catch {
+    toast.error('Erro ao remover aviso.');
   }
 };
 
@@ -346,193 +388,217 @@ onMounted(atualizarPainel);
         </div>
       </header>
 
-      <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100">
-        <div class="p-6 border-b border-slate-100">
-          <h2 class="text-lg font-black text-slate-800">Usuários</h2>
-          <p class="text-sm text-slate-500">
-            Altere planos, status e recursos premium.
-          </p>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 space-y-6">
+          <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100">
+            <div class="p-6 border-b border-slate-100">
+              <h2 class="text-lg font-black text-slate-800">Usuários</h2>
+              <p class="text-sm text-slate-500">
+                Altere planos, status e recursos premium.
+              </p>
+            </div>
+
+            <div v-if="loading" class="p-6 text-sm text-slate-400">
+              Carregando usuários...
+            </div>
+
+            <div v-else class="overflow-x-auto">
+              <table class="w-full text-left min-w-240">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Plano</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Premium</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                  </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                  <tr v-for="u in usuariosOrdenados" :key="u._id" class="hover:bg-slate-50/70">
+                    <td class="p-5">
+                      <div class="font-bold text-sm text-slate-700">{{ u.nome }}</div>
+                      <div class="text-[11px] text-slate-400">{{ u.email }}</div>
+                    </td>
+
+                    <td class="p-5">
+                      <span
+                        class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
+                        :class="getStatusBadgeClass(u.status)"
+                      >
+                        {{ u.status }}
+                      </span>
+                    </td>
+
+                    <td class="p-5">
+                      <span
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
+                        :class="getPlanoBadgeClass(u.plano?.tipo)"
+                      >
+                        <Crown size="12" />
+                        {{ planoInfo[u.plano?.tipo || 'lite']?.label || 'LITE' }}
+                      </span>
+                    </td>
+
+                    <td class="p-5">
+                      <span
+                        v-if="u.plano?.premium"
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-200"
+                      >
+                        <BadgeCheck size="12" />
+                        Ativo
+                      </span>
+
+                      <span
+                        v-else
+                        class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-100 text-slate-500 border-slate-200"
+                      >
+                        Inativo
+                      </span>
+                    </td>
+
+                    <td class="p-5">
+                      <div class="flex justify-end gap-2">
+                        <button
+                          @click="alternarStatusRapido(u)"
+                          type="button"
+                          class="p-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          :title="u.status === 'ativo' ? 'Desativar usuário' : 'Ativar usuário'"
+                        >
+                          <Power size="15" />
+                        </button>
+
+                        <button
+                          @click="abrirModalPlano(u)"
+                          type="button"
+                          class="px-4 py-3 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100">
+            <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h2 class="text-lg font-black text-slate-800">Monitoramento</h2>
+                <p class="text-sm text-slate-500">
+                  Horário de login, edições e ações administrativas.
+                </p>
+              </div>
+
+              <button
+                @click="baixarBackupCVs"
+                :disabled="baixandoBackup"
+                type="button"
+                class="px-4 py-3 rounded-2xl bg-slate-900 text-white text-xs font-black uppercase flex items-center gap-2 disabled:opacity-70"
+              >
+                <Loader2 v-if="baixandoBackup" size="14" class="animate-spin" />
+                <Download v-else size="14" />
+                Backup CVs
+              </button>
+            </div>
+
+            <div v-if="loadingLogs" class="p-6 text-sm text-slate-400">
+              Carregando atividade...
+            </div>
+
+            <div v-else-if="!logsAtividade.length" class="p-6 text-sm text-slate-500">
+              Nenhum evento de atividade registrado ainda.
+            </div>
+
+            <div v-else class="overflow-x-auto">
+              <table class="w-full text-left min-w-240">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Data/Hora</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Ação</th>
+                    <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
+                  </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                  <tr v-for="log in logsAtividade.slice(0, 10)" :key="log._id" class="hover:bg-slate-50/70">
+                    <td class="p-5 text-sm text-slate-700 font-semibold whitespace-nowrap">
+                      {{ formatarDataHora(log.createdAt) }}
+                    </td>
+
+                    <td class="p-5">
+                      <span
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
+                        :class="getAcaoBadgeClass(log.action || '')"
+                      >
+                        <History size="12" />
+                        {{ getAcaoLabel(log.action) }}
+                      </span>
+                    </td>
+
+                    <td class="p-5">
+                      <div class="font-bold text-sm text-slate-700">{{ log.actorNome || '-' }}</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
 
-        <div v-if="loading" class="p-6 text-sm text-slate-400">
-          Carregando usuários...
+        <div class="space-y-6">
+          <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100 p-6">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="bg-blue-100 text-blue-600 p-2 rounded-xl">
+                <Megaphone size="20" />
+              </div>
+              <div>
+                <h2 class="text-md font-black text-slate-800">Avisos e Novidades</h2>
+                <p class="text-[10px] uppercase font-bold text-slate-400">Dashboard dos usuários</p>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <input
+                v-model="novoAviso.titulo"
+                placeholder="Título do aviso"
+                class="w-full bg-slate-50 rounded-2xl px-4 py-3 outline-none text-sm border border-transparent focus:border-blue-300"
+              />
+              <textarea
+                v-model="novoAviso.mensagem"
+                placeholder="Escreva a mensagem..."
+                class="w-full bg-slate-50 rounded-2xl px-4 py-3 outline-none text-sm border border-transparent focus:border-blue-300 h-24 resize-none"
+              ></textarea>
+              
+              <div class="flex gap-2">
+                <select v-model="novoAviso.tipo" class="flex-1 bg-slate-50 rounded-2xl px-4 py-3 outline-none text-sm">
+                  <option value="novidade">Novidade</option>
+                  <option value="info">Informação</option>
+                  <option value="alerta">Alerta</option>
+                </select>
+                <button @click="criarAviso" :disabled="processando" class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-4 py-3 font-black text-xs uppercase transition-colors">
+                  Publicar
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-8 space-y-3">
+              <div v-if="!avisos.length" class="text-xs text-slate-400 text-center py-4">Nenhum aviso ativo.</div>
+              <div v-for="aviso in avisos" :key="aviso._id" class="p-4 rounded-2xl border flex items-start justify-between" :class="{'bg-blue-50 border-blue-100': aviso.tipo === 'novidade', 'bg-slate-50 border-slate-200': aviso.tipo === 'info', 'bg-amber-50 border-amber-200': aviso.tipo === 'alerta'}">
+                <div>
+                  <h4 class="font-bold text-sm text-slate-800">{{ aviso.titulo }}</h4>
+                  <p class="text-xs text-slate-600 mt-1 line-clamp-2">{{ aviso.mensagem }}</p>
+                </div>
+                <button @click="deletarAviso(aviso._id)" class="text-slate-400 hover:text-red-500 p-1">
+                  <Trash2 size="14" />
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
-
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-left min-w-240">
-            <thead class="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Plano</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Limite</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Premium</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Função</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
-              </tr>
-            </thead>
-
-            <tbody class="divide-y divide-slate-100">
-              <tr v-for="u in usuariosOrdenados" :key="u._id" class="hover:bg-slate-50/70">
-                <td class="p-5">
-                  <div class="font-bold text-sm text-slate-700">{{ u.nome }}</div>
-                  <div class="text-[11px] text-slate-400">{{ u.email }}</div>
-                </td>
-
-                <td class="p-5">
-                  <span
-                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
-                    :class="getStatusBadgeClass(u.status)"
-                  >
-                    {{ u.status }}
-                  </span>
-                </td>
-
-                <td class="p-5">
-                  <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
-                    :class="getPlanoBadgeClass(u.plano?.tipo)"
-                  >
-                    <Crown size="12" />
-                    {{ planoInfo[u.plano?.tipo || 'lite']?.label || 'LITE' }}
-                  </span>
-                </td>
-
-                <td class="p-5 text-sm font-bold text-slate-600">
-                  {{ formatarLimite(u.plano?.limiteTemplates ?? 1) }}
-                </td>
-
-                <td class="p-5">
-                  <span
-                    v-if="u.plano?.premium"
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-200"
-                  >
-                    <BadgeCheck size="12" />
-                    Ativo
-                  </span>
-
-                  <span
-                    v-else
-                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-100 text-slate-500 border-slate-200"
-                  >
-                    Inativo
-                  </span>
-                </td>
-
-                <td class="p-5">
-                  <span
-                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
-                    :class="u.role === 'admin' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
-                  >
-                    {{ u.role }}
-                  </span>
-                </td>
-
-                <td class="p-5">
-                  <div class="flex justify-end gap-2">
-                    <button
-                      @click="alternarStatusRapido(u)"
-                      type="button"
-                      class="p-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      :title="u.status === 'ativo' ? 'Desativar usuário' : 'Ativar usuário'"
-                    >
-                      <Power size="15" />
-                    </button>
-
-                    <button
-                      @click="abrirModalPlano(u)"
-                      type="button"
-                      class="px-4 py-3 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest"
-                    >
-                      Gerenciar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100">
-        <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-black text-slate-800">Monitoramento</h2>
-            <p class="text-sm text-slate-500">
-              Horário de login, edições e ações administrativas.
-            </p>
-          </div>
-
-          <button
-            @click="baixarBackupCVs"
-            :disabled="baixandoBackup"
-            type="button"
-            class="px-4 py-3 rounded-2xl bg-slate-900 text-white text-xs font-black uppercase flex items-center gap-2 disabled:opacity-70"
-          >
-            <Loader2 v-if="baixandoBackup" size="14" class="animate-spin" />
-            <Download v-else size="14" />
-            Backup currículos
-          </button>
-        </div>
-
-        <div v-if="loadingLogs" class="p-6 text-sm text-slate-400">
-          Carregando atividade...
-        </div>
-
-        <div v-else-if="!logsAtividade.length" class="p-6 text-sm text-slate-500">
-          Nenhum evento de atividade registrado ainda.
-        </div>
-
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-left min-w-240">
-            <thead class="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Data/Hora</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Ação</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recurso</th>
-                <th class="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Origem</th>
-              </tr>
-            </thead>
-
-            <tbody class="divide-y divide-slate-100">
-              <tr v-for="log in logsAtividade" :key="log._id" class="hover:bg-slate-50/70">
-                <td class="p-5 text-sm text-slate-700 font-semibold whitespace-nowrap">
-                  {{ formatarDataHora(log.createdAt) }}
-                </td>
-
-                <td class="p-5">
-                  <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border"
-                    :class="getAcaoBadgeClass(log.action || '')"
-                  >
-                    <History size="12" />
-                    {{ getAcaoLabel(log.action) }}
-                  </span>
-                </td>
-
-                <td class="p-5">
-                  <div class="font-bold text-sm text-slate-700">{{ log.actorNome || '-' }}</div>
-                  <div class="text-[11px] text-slate-400">{{ log.actorEmail || '-' }}</div>
-                </td>
-
-                <td class="p-5 text-sm text-slate-600">
-                  <div class="font-semibold uppercase text-[11px] tracking-widest text-slate-500">
-                    {{ log.resourceType || '-' }}
-                  </div>
-                  <div class="text-[11px] text-slate-400 mt-1 break-all">
-                    {{ log.resourceId || '-' }}
-                  </div>
-                </td>
-
-                <td class="p-5 text-sm text-slate-500">
-                  <div class="font-mono text-[11px]">{{ log.ip || '-' }}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </div>
     </div>
 
     <div
@@ -795,3 +861,9 @@ onMounted(atualizarPainel);
     </div>
   </div>
 </template>
+
+<style scoped>
+.min-w-240 {
+  min-width: 60rem;
+}
+</style>
